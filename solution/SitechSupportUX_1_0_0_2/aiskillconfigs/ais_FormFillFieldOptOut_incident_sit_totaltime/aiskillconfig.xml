@@ -1,0 +1,15 @@
+<aiskillconfig uniquename="ais_FormFillFieldOptOut_incident_sit_totaltime">
+  <aiskill>FormFillFieldOptOut</aiskill>
+  <attribute>
+    <entityid.logicalname>incident</entityid.logicalname>
+    <logicalname>sit_totaltime</logicalname>
+  </attribute>
+  <description>incident - Total time Form fill opt out</description>
+  <entity>
+    <logicalname>incident</logicalname>
+  </entity>
+  <iscustomizable>1</iscustomizable>
+  <scope>1</scope>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+</aiskillconfig>
