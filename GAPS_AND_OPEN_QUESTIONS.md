@@ -2,9 +2,9 @@
 
 **Document type**: Gap & Risk Register  
 **Author role**: Business System Analyst  
-**Sources**: SitechSupportUX solution code, Axelio FDD CESales v0.1 (26-05-2026), FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Sitech data solution (1.0.0.1 managed)  
+**Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Axelio FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)  
 **Date**: 2026-06-05  
-**Version**: 1.1
+**Version**: 1.2
 
 ---
 
@@ -467,6 +467,108 @@ The data conversion table in the FDD marks Activities (in CE/Dataverse) as "NTB"
 
 ---
 
+## SECTION 4a — Code vs. Documentation Divergence (New Findings from Managed Packages)
+
+### GAP-X01 — Training Module Built But Entirely Undocumented `[BLOCKER]`
+**Impact**: H | **Effort**: M
+
+`SitechUX v1.0.0.1` contains a fully structured **Training Module** (`sit_TrainingSession` + `sit_ContactTraining`) that does not appear in any functional design document, meeting note, or requirements list found in this analysis.
+
+The module tracks:
+- Training sessions (linked to a Product from the catalogue, assigned to a trainer, with date/location/recording flag).
+- Contact attendance and whether a certificate/confirmation/reminder was sent.
+
+**Questions that have no answers in any document**:
+- What business process does this support? (Customer product training? Internal staff training?)
+- Who creates and manages training sessions — Sales, Support, or a separate department?
+- Are training certifications visible on the Account or Contact form?
+- Is this module live / in production, or is it an early prototype?
+- Who are the users and what are their roles?
+
+**Recommendation**: Write a functional specification for the Training module before further build work proceeds.
+
+---
+
+### GAP-X02 — `sit_ContactTraining.sit_contact` Likely Points to Wrong Entity `[BUG]`
+**Impact**: H | **Effort**: L
+
+The field `sit_contact` on `sit_ContactTraining` — intended to link an attendance record to a person — is bound via the relationship `sit_contacttraining_Contact_contract` to the **`Contract`** entity, not the **`Contact`** entity.
+
+This means:
+- It is currently impossible to link a training attendance record to a person (Contact).
+- The field may be storing Contract references, which is functionally meaningless for training attendance.
+
+**Action required**: Verify in the live environment whether this is a configuration error. If so, the relationship must be deleted and recreated pointing to the `Contact` entity. This is a **data loss risk** if records already exist with incorrect Contract references.
+
+---
+
+### GAP-X03 — Credits Entities Built But No Functional Design or UI `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: M
+
+`sit_Credits` and `sit_Credithours` are deployed in `SitechUX v1.0.0.1`, partially addressing the Credits concept discussed in the gap analysis (GAP-C08). However:
+
+- **No functional design** describes the business rules governing these entities.
+- **No forms or views** are defined for these entities in the solution packages — agents cannot see or interact with them.
+- **No automation** (Power Automate / plugin) is present to populate or update these records.
+- The relationship between `sit_Credits` (transactions?) and `sit_Credithours` (balance?) is not documented.
+- `sit_Credithours` has `sit_lastorder → SalesOrder` — but the business rule triggering a credit update when an order is placed is not defined.
+
+**This means Credits data is structurally stored but functionally inert.** The feature is partially built and cannot be used.
+
+---
+
+### GAP-X04 — Subscriptions Entity Not Yet Built
+**Impact**: M | **Effort**: M
+
+The FDD specifies a custom `Subscriptions` table (BC → CE read-only). This entity is **absent** from all three solution packages. It is referenced in the FDD as a must-have for the Customer Contracts/Subscriptions tab on the Account form.
+
+---
+
+### GAP-X05 — Account Segment Field: Type Mismatch with FDD `[DESIGN]`
+**Impact**: M | **Effort**: L
+
+`SitechUX` implements `sit_accountsegment` as a **multi-select picklist** on Account. The FDD (§A5) refers to a single "Segment" field without specifying whether it should be single-select or multi-select.
+
+**Questions**:
+- Can an Account belong to multiple segments simultaneously?
+- What are the picklist option values? None are defined in the solution.
+- Is this the same as the `msdyn_segmentid` lookup to `msdyn_segment` also present on the Account? (Both exist — potential duplication.)
+
+---
+
+### GAP-X06 — Machine Model Is a Brand×Type Intersection, Not a Hierarchy `[DESIGN]`
+**Impact**: M | **Effort**: M
+
+`sit_MachineModel` has **required** lookups to both `sit_MachineBrand` AND `sit_MachineType`. This means the data model is a 2D classification matrix (Brand × Type → Model), not a simple 3-level Brand → Model → Type hierarchy.
+
+**Functional implications not addressed in any document**:
+- On the Opportunity Machine Info section, which picker comes first — Brand or Type?
+- Is the Model lookup filtered by both the selected Brand AND the selected Type?
+- What happens if no model exists for a given Brand+Type combination?
+- Are all three fields required on the Opportunity, or can an agent partially fill in only Brand?
+
+---
+
+### GAP-X07 — Service Item Component Replacement Tracking Not Specified `[DESIGN]`
+**Impact**: L | **Effort**: L
+
+`sit_ServiceItemComponents` has a `sit_replaced` (boolean) field. This enables tracking whether a physical component was replaced during a service visit, but:
+- No business rule defines when this flag is set.
+- No workflow triggers on the flag change (e.g., auto-create a follow-up or close the component line).
+- No view or filter exposes "replaced components" to agents.
+
+---
+
+### GAP-X08 — SitechSupportData vs SitechSupportUX Layering Not Documented
+**Impact**: L | **Effort**: L
+
+The split between `SitechSupportData` (schema) and `SitechSupportUX` (forms + canvas apps) is a deliberate architectural pattern. However, no deployment sequence document or README describes:
+- Installation order: SitechSupportData must be installed before SitechSupportUX.
+- Which solution to update when adding new fields (Data) vs. changing forms (UX).
+- Whether SitechUX must also be installed before or after SitechSupportData.
+
+---
+
 ## SECTION 5 — Testing, Quality, and Documentation Gaps
 
 ### GAP-Q01 — No Test Plan or Acceptance Criteria `[BLOCKER]`
@@ -538,6 +640,9 @@ No end-user training material is included for Sales agents (quote creation, prod
 | GAP-T01 | Power Automate flows not designed | Both |
 | GAP-T02 | Service Item SharePoint migration unplanned | Both |
 | GAP-Q01 | No test plan or acceptance criteria | Both |
+| **GAP-X01** | **Training module built but entirely undocumented** | **SitechUX** |
+| **GAP-X02** | **sit_ContactTraining.sit_contact points to Contract (bug)** | **SitechUX** |
+| **GAP-X03** | **Credits entities built but no UI, no design, no automation** | **SitechUX** |
 
 ### High Impact (Non-Blocker)
 

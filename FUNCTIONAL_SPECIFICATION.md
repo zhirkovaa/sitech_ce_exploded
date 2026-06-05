@@ -2,12 +2,12 @@
 
 **Document type**: Functional Specification  
 **Author role**: Business System Analyst  
-**Solution scope**: D365 CE Sales Hub + SitechSupportUX v1.0.0.2 (Customer Service)  
+**Solution scope**: D365 CE Sales Hub + SitechSupportUX v1.0.0.3 + SitechUX v1.0.0.1 + SitechSupportData v1.0.0.2  
 **Implementer**: Axelio B.V. (Marijke Kerkhove / Renger Reitsema)  
 **Functional owner (Sitech)**: René van der Linden  
 **Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
-**Date**: 2026-06-05 (enriched with all source documents)  
-**Version**: 1.1
+**Date**: 2026-06-05 (enriched with all source documents including managed solution packages)  
+**Version**: 1.2
 
 ---
 
@@ -442,6 +442,30 @@ Cases arriving via the shared support email address are routed through a queue. 
 **FR-C22 — Knowledge Articles**  
 A knowledge base is maintained in CE, linked to cases. AI suggests relevant articles when closing a case. Knowledge articles are accessible from the Sales module as well.
 
+### 6.9a Credits — Partially Implemented in Code
+
+> **Note**: The `sit_Credits` and `sit_Credithours` entities are **already built** in `SitechUX v1.0.0.1` but have no functional design document. The specification below is reverse-engineered from the code.
+
+**FR-C-CR01 — Credit Transaction Records (`sit_Credits`)**  
+Stores individual credit grant/deduction events per Account:
+- `sit_account` (Lookup → Account, required) — the customer
+- `sit_id` (text, required) — credit transaction reference
+- `sit_quantity` (integer, required) — number of credits in this transaction (positive = added, presumably)
+
+**FR-C-CR02 — Credit Hours Balance (`sit_Credithours`)**  
+Stores the rolling credit balance per Account:
+- `sit_account` (Lookup → Account, required) — the customer
+- `sit_credits` (integer) — current credit value
+- `sit_quantity` (integer, required) — quantity (hours or units)
+- `sit_lastorder` (Lookup → SalesOrder) — reference to the most recent order that affected the balance
+
+> **Open design questions** (not defined anywhere):
+> - What triggers a `sit_Credits` record — a Sales Order, a manual entry, a case resolution?
+> - How does `sit_Credithours` balance update — via Power Automate, a plugin, or manual?
+> - What is the relationship between `sit_Credits` (transactions) and `sit_Credithours` (balance) — are they separate ledger/balance concepts?
+> - What is the threshold below which support becomes chargeable?
+> - How are these entities surfaced to Support agents on the Case or Account form?
+
 ### 6.10 Credits and Entitlements
 
 **FR-C23 — Entitlements**  
@@ -464,6 +488,55 @@ From a resolved case, a Service Order is created in BC. Three types: SE (Service
 
 > **Open question**: Can one case be converted to a Service Order more than once?  
 > **Open question**: Should BC create final case activities after a Sales Order or Service Order is completed?
+
+---
+
+## 6a. Training Module (SitechUX — Undocumented Feature)
+
+> **Important**: This module is **fully implemented in code** (`SitechUX v1.0.0.1`) but appears in **no functional design document**. It is reverse-engineered entirely from the solution schema. No requirements, acceptance criteria, or UX design exist for it.
+
+### Purpose
+
+Tracks product training sessions and records which contacts attended and whether they passed.
+
+### Entities
+
+**`sit_TrainingSession`** — A scheduled training event:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `sit_description` | Text | Yes | Training name/description |
+| `sit_date` | DateTime | No | Date of session |
+| `sit_location` | Text | No | Physical or virtual location |
+| `sit_time` | Text | No | Time of session (stored as text) |
+| `sit_passed` | Boolean | No | Whether the session was passed (overall?) |
+| `sit_recorded` | Boolean | No | Whether the session was recorded |
+| `sit_trainer` | Lookup → SystemUser | Recommended | Internal trainer |
+| `sit_training` | Lookup → Product | Recommended | Training product from the product catalogue |
+
+**`sit_ContactTraining`** — Junction: Contact attendance at a Training Session:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `sit_name` | Text | Yes | Record name |
+| `sit_contact` | Lookup → **Contract** | Yes | ⚠️ Likely a bug — field is named "contact" but points to the `Contract` entity, not `Contact` |
+| `sit_trainingsession` | Lookup → sit_TrainingSession | No | Which session |
+| `sit_certificatesant` | Boolean | No | Certificate sent to contact |
+| `sit_confirmationsent` | Boolean | No | Confirmation sent |
+| `sit_remindersent` | Boolean | No | Reminder sent |
+
+> **Suspected defect**: The `sit_contact` field on `sit_ContactTraining` is linked to the `Contract` entity (via relationship `sit_contacttraining_Contact_contract`) rather than the `Contact` entity. This appears to be a misconfiguration — the field name suggests it should link to a Contact person, not a Contract record. **Needs immediate verification.**
+
+### Functional Requirements (inferred)
+
+**FR-TR01 — Create Training Sessions**  
+A Training Session is a schedulable event linked to a training Product, assigned to a trainer (system user), with date, time, and location.
+
+**FR-TR02 — Register Contact Attendance**  
+A Contact Training record links a contact to a training session, tracking confirmation, reminder, and certificate communications.
+
+**FR-TR03 — Training Product Catalogue**  
+Training offerings are modelled as Products in the D365 product catalogue (Item Category Code = 'Training', presumably).
 
 ---
 
@@ -510,12 +583,16 @@ From a resolved case, a Service Order is created in BC. Three types: SE (Service
 | `sit_ServiceBillofMaterials` | Installation BoM |
 | `sit_ServiceItemComponents` | Component-level parts list |
 
-### 8.2 Custom Entities (Sales)
+### 8.2 Custom Entities (SitechUX — Shared / Sales)
 
-| Entity | Purpose |
-|--------|---------|
-| `Country` (custom) | Country reference; synced from BC; used in address lookups |
-| `Subscriptions` (custom) | Customer contracts/subscriptions; read-only from BC |
+| Entity | Schema Name | Purpose |
+|--------|-------------|---------|
+| Country reference | `sit_Country` | Country + country code; synced from BC; used in Account address lookups |
+| Credits (transactions) | `sit_Credits` | Credit grant/deduction events per Account |
+| Credit hours (balance) | `sit_Credithours` | Rolling support-hour credit balance per Account; links to last SalesOrder |
+| Training session | `sit_TrainingSession` | Schedulable training events linked to a Product and trainer |
+| Contact training | `sit_ContactTraining` | Contact attendance at a training session; tracks comms sent |
+| Subscriptions | *(not yet in code)* | Customer contracts/subscriptions; read-only from BC — **not yet built** |
 
 ### 8.3 Key Fields on Incident (Case)
 
@@ -617,9 +694,35 @@ Custom security roles for the Support module are **not yet defined** in the deli
 
 ## 11. Solution Architecture
 
-- **Sales Hub** and **Customer Service / Field Service Hub** are separate apps (not merged into one).
-- A **base solution** for shared tables may be used; separate solutions per app (to be confirmed).
-- Solution package `SitechSupportUX v1.0.0.2` delivered as unmanaged Dynamics 365 solution.
+### 11.1 Solution Package Structure
+
+Four separate managed solutions have been identified. They form a layered stack:
+
+| Solution | Version | Role | Key Contents |
+|----------|---------|------|-------------|
+| **SitechSupportData** | 1.0.0.2 | Data/schema layer for Support | Entity definitions only: Incident, CustomerAsset, CaseProductLine, MachineBrand/Model/Type, ServiceBoM, ServiceItemComponents, Product |
+| **SitechSupportUX** | 1.0.0.3 | UX layer for Support | Canvas Apps (Exploded View + Service Item Components), Case form customisations, PhoneCall extension, AI skill config |
+| **SitechUX** | 1.0.0.1 | Shared base / Sales UX | Country table, Credits + CreditHours entities, Training module (TrainingSession + ContactTraining), Account extensions (segment, country lookups), app module definition, Sitech logo |
+
+> **Design principle confirmed**: Support functionality is split across two solutions (Data + UX), with a shared base solution (SitechUX) for common entities used by both Sales and Support.  
+> **Sales Hub** and **Customer Service Hub** are separate apps; they are not merged.
+
+### 11.2 PhoneCall Extension (UX 1.0.0.3)
+
+The `PhoneCall` standard entity has been extended with a custom field:
+- `sit_account` (Lookup → Account) — links a phone call activity directly to an Account, independent of the parent Case or Contact.
+
+This supports the short-contact registration model (logging calls at the Account level without creating a Case).
+
+### 11.3 Machine Model Hierarchy — Confirmed Built
+
+`sit_MachineModel` has **required** lookups to both `sit_MachineBrand` AND `sit_MachineType`. This means a Machine Model always belongs to a Brand and a Type. The three reference entities together form: **Brand + Type → Model**. This is not a simple three-level hierarchy but a two-dimensional classification (a Model sits at the intersection of a Brand and a Type).
+
+### 11.4 Service Item Component — Replacement Tracking
+
+`sit_ServiceItemComponents` includes a `sit_replaced` (boolean) field. This enables tracking whether a specific component has been physically replaced during a service visit. This field is not documented in any functional design document.
+
+### 11.5 Platform Dependencies (SitechSupportUX)
 
 ### 11.1 Platform Dependencies (SitechSupportUX)
 
