@@ -148,23 +148,6 @@ Full register with impact (H/M/L), effort (H/M/L), and actions: see `GAPS_AND_OP
 
 ---
 
-## Technical Skills Demonstrated
-
-| Skill | Evidence |
-|-------|----------|
-| Power Automate — flow analysis | 3 flows documented from raw JSON: triggers, actions, FetchXML, email templates |
-| Dataverse schema analysis | Custom entities, field types, relationships from solution XML |
-| FetchXML | Linked-entity queries, filter conditions, aliased columns reviewed |
-| Power Platform ALM | 4-solution managed deployment architecture, solution layering |
-| Canvas Apps | 2 `.msapp` apps identified; logic inferred from schema cross-reference |
-| SharePoint integration | Two connector references mapped (logo + floor plan assets) |
-| Business Central integration | 13 BC↔CE interfaces catalogued (direction, priority, risk) |
-| Docupack connector | Certificate generation pipeline fully traced |
-| Functional specification | 47 FRs written from code analysis alone |
-| Gap analysis / bug identification | 7 production bugs identified via static analysis of flow JSON |
-
----
-
 ## Methodology
 
 ```
@@ -191,5 +174,9 @@ Search `customizations.xml` for `<Entity>` to inspect entity schemas.
 Search for `<form>` within entity definitions to inspect form layouts.
 
 ---
+
+---
+
+`Power Automate` `Dataverse` `FetchXML` `D365 CE` `Canvas Apps` `SharePoint` `Business Central` `Power Platform ALM` `Docupack` `BSA`
 
 *Solution versions analysed: SitechSupportData 1.0.0.2 · SitechSupportUX 1.0.0.3 · SitechUX 1.0.0.1 · June 2026*
