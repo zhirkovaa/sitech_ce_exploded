@@ -4,7 +4,7 @@
 **Author role**: Business System Analyst  
 **Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Axelio FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)  
 **Date**: 2026-06-05  
-**Version**: 1.2
+**Version**: 1.3
 
 ---
 
@@ -469,36 +469,38 @@ The data conversion table in the FDD marks Activities (in CE/Dataverse) as "NTB"
 
 ## SECTION 4a — Code vs. Documentation Divergence (New Findings from Managed Packages)
 
-### GAP-X01 — Training Module Built But Entirely Undocumented `[BLOCKER]`
+### GAP-X01 — Training Module (SITECH Academy) Undocumented in FDD `[DESIGN]`
 **Impact**: H | **Effort**: M
 
-`SitechUX v1.0.0.1` contains a fully structured **Training Module** (`sit_TrainingSession` + `sit_ContactTraining`) that does not appear in any functional design document, meeting note, or requirements list found in this analysis.
+**Status update (2026-06-05)**: The Training Module is **live in production since May 2024** as the SITECH Academy. It is **not** an abandoned prototype. The confirmation email flow has been running for 2+ years. However, it still has **no functional design document**, no acceptance criteria, and no formal requirements specification anywhere in the project documentation set.
 
-The module tracks:
-- Training sessions (linked to a Product from the catalogue, assigned to a trainer, with date/location/recording flag).
-- Contact attendance and whether a certificate/confirmation/reminder was sent.
+The module is now reverse-engineered and documented in Section 6a of the Functional Specification.
 
-**Questions that have no answers in any document**:
-- What business process does this support? (Customer product training? Internal staff training?)
-- Who creates and manages training sessions — Sales, Support, or a separate department?
-- Are training certifications visible on the Account or Contact form?
-- Is this module live / in production, or is it an early prototype?
-- Who are the users and what are their roles?
+**Remaining gaps**:
+- No formal requirements specification signed off by a business owner.
+- No UX design for training session management screens.
+- Who manages Training Sessions in CE — dedicated Academy staff, Sales, or Support?
+- Are training certifications (`sit_certificatesant`) visible on the Contact record form?
+- Are training histories visible on the Account form?
+- Is the reminder flow ("Get upcoming training sessions") actively used?
+- No test plan or acceptance criteria for the Academy module.
 
-**Recommendation**: Write a functional specification for the Training module before further build work proceeds.
+**Recommendation**: Conduct a one-day discovery session with the Academy owner to formalise the functional spec in Section 6a and capture the missing flows.
 
 ---
 
-### GAP-X02 — `sit_ContactTraining.sit_contact` Likely Points to Wrong Entity `[BUG]`
-**Impact**: H | **Effort**: L
+### GAP-X02 — `sit_ContactTraining.sit_contact` — Misleading Relationship Name (Re-evaluated)
+**Impact**: L | **Effort**: L
 
-The field `sit_contact` on `sit_ContactTraining` — intended to link an attendance record to a person — is bound via the relationship `sit_contacttraining_Contact_contract` to the **`Contract`** entity, not the **`Contact`** entity.
+**Status update (2026-06-05)**: Originally flagged as a likely bug (field `sit_contact` bound to `Contract` entity via relationship `sit_contacttraining_Contact_contract`). Analysis of the live flow definition shows that the flow correctly uses `triggerBody()?['_sit_contactid_value']` and reads from the `contacts` entity — the field stores **Contact GUIDs**, not Contract GUIDs.
 
-This means:
-- It is currently impossible to link a training attendance record to a person (Contact).
-- The field may be storing Contract references, which is functionally meaningless for training attendance.
+**Current assessment**: The relationship XML name `sit_contacttraining_Contact_contract` is **misleading** but the field value column (`_sit_contactid_value`) correctly points to Contact records. The flow works. The bug may be a naming artefact from the solution builder.
 
-**Action required**: Verify in the live environment whether this is a configuration error. If so, the relationship must be deleted and recreated pointing to the `Contact` entity. This is a **data loss risk** if records already exist with incorrect Contract references.
+**Action required**: Verify in the live environment that:
+1. The schema column `_sit_contactid_value` references the `contact` entity (not `contract`).
+2. No existing records have accidental Contract references stored in this column.
+
+Low risk, but confirmation closes the gap.
 
 ---
 
@@ -566,6 +568,72 @@ The split between `SitechSupportData` (schema) and `SitechSupportUX` (forms + ca
 - Installation order: SitechSupportData must be installed before SitechSupportUX.
 - Which solution to update when adding new fields (Data) vs. changing forms (UX).
 - Whether SitechUX must also be installed before or after SitechSupportData.
+
+---
+
+### GAP-X09 — `sit_trainingsessiontime` Field Name Mismatch in Flow vs. Schema `[BUG]`
+**Impact**: M | **Effort**: L
+
+The confirmation flow references `outputs('Get_a_Training_Session')?['body/sit_trainingsessiontime']` when composing the email body (time field). However, the solution schema (`SitechUX v1.0.0.1`) defines the time field as **`sit_time`**, not `sit_trainingsessiontime`.
+
+This means:
+- The time value in all confirmation emails is currently **blank** (the expression resolves to null).
+- Participants receive a confirmation with an empty "Tijd:" (time) line.
+
+**Action required**: Either rename the schema field from `sit_time` to `sit_trainingsessiontime` (requires solution update and republish), or fix the flow expression to use `body/sit_time`. Fixing the flow is lower effort.
+
+---
+
+### GAP-X10 — Training Flows Run Under Personal Credentials `[RISK]` `[BLOCKER]`
+**Impact**: H | **Effort**: M
+
+Both Academy flows (`When Training Participants is added - send Confirmation` and `Copy of - Get upcoming training sessions`) run under the personal Microsoft 365 account `alina.zhirkova@sitech-nederland.nl`. The connections are owned by this individual user.
+
+**Risks**:
+- If `alina.zhirkova` leaves Sitech or her account is disabled, **both flows will fail immediately** and no training confirmation emails will be sent.
+- The flow was suspended (`flowclientsuspensiontime: 2026-03-03`) — likely due to a connection/credential issue. It is **currently non-operational** ⚠️.
+- Personal connections cannot be monitored centrally or transferred without the owner's intervention.
+
+**Action required**:
+1. Create a **service account** (e.g., `svc-powerautomate@sitech-nederland.nl`) with appropriate D365 + SharePoint licences.
+2. Re-establish flow connections under the service account.
+3. Implement flow monitoring/alerting (failure email to IT/business owner).
+4. Investigate and resolve the current suspension to restore flow operation.
+
+---
+
+### GAP-X11 — "Copy of - Get Upcoming Training Sessions" Flow Unanalysed `[DESIGN]`
+**Impact**: M | **Effort**: L
+
+The manifest for the exported package (`9c82e091-manifest.json`) shows a flow named **"Copy of - Get upcoming training sessions"** (`5aba4c9d-4af9-481d-85fb-5eedefe0cb9c`). The "Copy of -" prefix indicates this is a **duplicate** of an original flow, not a canonical production version.
+
+**Concerns**:
+- The original "Get upcoming training sessions" flow may have been deleted or may still exist in the environment.
+- If both original and copy are active simultaneously, reminders may fire twice.
+- The full definition of this flow has not been analysed — its trigger, schedule, and actions are unknown.
+
+**Action required**: Analyse the flow definition, determine whether the original still exists in the environment, deactivate any duplicate, and ensure only one canonical version runs.
+
+---
+
+### GAP-X12 — Hardcoded Product GUIDs in Training Confirmation Flow `[RISK]`
+**Impact**: M | **Effort**: L
+
+The confirmation flow has two Product GUIDs hardcoded in a condition to **suppress** confirmation emails for those training types:
+
+| GUID | Status |
+|------|--------|
+| `b24df9ab-0a7a-ec11-8d21-000d3aafc422` | Undocumented — likely "internal" or "free" training |
+| `b4632176-8769-ed11-9561-6045bd895dae` | Undocumented — likely another internal type |
+
+**Risks**:
+- No documentation explains what these products are or why they are excluded.
+- If the Product records are deleted and recreated in a new environment, new GUIDs will be assigned and the exclusion silently breaks — confirmation emails will start going to internal participants.
+- No way to add new excluded products without editing the flow directly.
+
+**Action required**:
+1. Document what these two Product records represent.
+2. Replace hardcoded GUIDs with a configurable attribute on the Product record (e.g., a boolean `sit_suppressconfirmation`) and update the flow condition to check that attribute.
 
 ---
 
@@ -640,9 +708,8 @@ No end-user training material is included for Sales agents (quote creation, prod
 | GAP-T01 | Power Automate flows not designed | Both |
 | GAP-T02 | Service Item SharePoint migration unplanned | Both |
 | GAP-Q01 | No test plan or acceptance criteria | Both |
-| **GAP-X01** | **Training module built but entirely undocumented** | **SitechUX** |
-| **GAP-X02** | **sit_ContactTraining.sit_contact points to Contract (bug)** | **SitechUX** |
 | **GAP-X03** | **Credits entities built but no UI, no design, no automation** | **SitechUX** |
+| **GAP-X10** | **Training flows run under personal credentials — currently suspended** | **Academy** |
 
 ### High Impact (Non-Blocker)
 
@@ -658,8 +725,23 @@ No end-user training material is included for Sales agents (quote creation, prod
 | GAP-C12 | Case-to-service order rules incomplete | Support |
 | GAP-T03 | Subscription-from-BoM unsolved | Both |
 | GAP-D05 | Activities data migration TBD | Both |
+| **GAP-X01** | **SITECH Academy module undocumented — no FDD, no owner sign-off** | **Academy** |
+| **GAP-X09** | **sit_trainingsessiontime field name mismatch — time blank in all emails** | **Academy** |
+| **GAP-X11** | **"Copy of -" training flow is duplicate — may double-fire reminders** | **Academy** |
+| **GAP-X12** | **Hardcoded product GUIDs in flow — silently breaks on environment copy** | **Academy** |
+
+### Low / Medium Impact
+
+| ID | Description | Module |
+|----|-------------|--------|
+| GAP-X02 | sit_ContactTraining relationship name misleading — verify in env | Academy |
+| GAP-X04 | Subscriptions entity not yet built | Sales |
+| GAP-X05 | Account segment field type mismatch with FDD | Sales |
+| GAP-X06 | Machine Model is Brand×Type matrix — filter logic undesigned | Sales |
+| GAP-X07 | Component replacement flag has no workflow | Support |
+| GAP-X08 | Solution layering deployment order undocumented | Both |
 
 ---
 
-*End of Gap & Risk Register — v1.1*  
-*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)*
+*End of Gap & Risk Register — v1.3*  
+*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions (Training Confirmation + Upcoming Sessions, 2026-06-05)*

@@ -7,7 +7,7 @@
 **Functional owner (Sitech)**: René van der Linden  
 **Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
 **Date**: 2026-06-05 (enriched with all source documents including managed solution packages)  
-**Version**: 1.2
+**Version**: 1.3
 
 ---
 
@@ -491,13 +491,13 @@ From a resolved case, a Service Order is created in BC. Three types: SE (Service
 
 ---
 
-## 6a. Training Module (SitechUX — Undocumented Feature)
+## 6a. Training Module — SITECH Academy
 
-> **Important**: This module is **fully implemented in code** (`SitechUX v1.0.0.1`) but appears in **no functional design document**. It is reverse-engineered entirely from the solution schema. No requirements, acceptance criteria, or UX design exist for it.
+> **Status**: This module is **fully implemented and live in production** since May 2024 (flow `clientCreatedTime: 2024-05-14`). It is the **SITECH Academy** customer-facing training management system. It does **not appear in any functional design document** — this specification is reverse-engineered from the solution schema and the live Power Automate flow definition.
 
 ### Purpose
 
-Tracks product training sessions and records which contacts attended and whether they passed.
+Manages SITECH Academy product training sessions and automates participant communication. Customers register for training sessions; the system confirms registration by email (in Dutch), sends reminders, and records certificate issuance.
 
 ### Entities
 
@@ -506,37 +506,105 @@ Tracks product training sessions and records which contacts attended and whether
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `sit_description` | Text | Yes | Training name/description |
-| `sit_date` | DateTime | No | Date of session |
+| `sit_date` | DateTime | No | Date of session (UTC, displayed W. Europe Standard Time) |
 | `sit_location` | Text | No | Physical or virtual location |
-| `sit_time` | Text | No | Time of session (stored as text) |
-| `sit_passed` | Boolean | No | Whether the session was passed (overall?) |
+| `sit_time` | Text | No | Time of session (stored as text, referenced as `sit_trainingsessiontime` in flow — see GAP-X09) |
+| `sit_passed` | Boolean | No | Whether the session was passed (overall) |
 | `sit_recorded` | Boolean | No | Whether the session was recorded |
-| `sit_trainer` | Lookup → SystemUser | Recommended | Internal trainer |
+| `sit_trainer` | Lookup → SystemUser | Recommended | Internal SITECH trainer |
 | `sit_training` | Lookup → Product | Recommended | Training product from the product catalogue |
 
-**`sit_ContactTraining`** — Junction: Contact attendance at a Training Session:
+**`sit_ContactTraining`** — Junction: a Contact's registration at a Training Session:
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `sit_name` | Text | Yes | Record name |
-| `sit_contact` | Lookup → **Contract** | Yes | ⚠️ Likely a bug — field is named "contact" but points to the `Contract` entity, not `Contact` |
-| `sit_trainingsession` | Lookup → sit_TrainingSession | No | Which session |
-| `sit_certificatesant` | Boolean | No | Certificate sent to contact |
-| `sit_confirmationsent` | Boolean | No | Confirmation sent |
-| `sit_remindersent` | Boolean | No | Reminder sent |
+| `sit_contact` | Lookup (field: `_sit_contactid_value`) | Yes | Links to `Contact` entity — the registered participant. Relationship XML name `sit_contacttraining_Contact_contract` is misleading but field stores Contact IDs (confirmed by live flow logic). |
+| `sit_trainingsession` | Lookup → sit_TrainingSession | No | Which session this registration is for |
+| `sit_certificatesant` | Boolean | No | Certificate sent flag |
+| `sit_confirmationsent` | Boolean | No | Confirmation email sent flag (set to `true` by automation) |
+| `sit_remindersent` | Boolean | No | Reminder email sent flag |
 
-> **Suspected defect**: The `sit_contact` field on `sit_ContactTraining` is linked to the `Contract` entity (via relationship `sit_contacttraining_Contact_contract`) rather than the `Contact` entity. This appears to be a misconfiguration — the field name suggests it should link to a Contact person, not a Contract record. **Needs immediate verification.**
+> **Note on `sit_contact`**: The relationship XML name `sit_contacttraining_Contact_contract` was flagged as a potential bug. However, the live Power Automate flow uses `triggerBody()?['_sit_contactid_value']` and reads from the `contacts` entity — confirming this field correctly stores Contact GUIDs. The XML relationship name is misleading but the data is correct. Verify in environment to rule out dual-registration between entity types.
 
-### Functional Requirements (inferred)
+### Power Automate Automation
+
+#### Flow 1: "When Training Participants is added - send Confirmation"
+
+**Flow ID**: `6978013a-40ff-4a33-927d-485124d65c53`  
+**Created**: 2024-05-14 | **Last modified**: 2026-03-04 | **Suspended since**: 2026-03-03 ⚠️  
+**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)
+
+**Trigger**: New `sit_contacttraining` row added (Dataverse webhook, scope = Organisation)
+
+**Logic**:
+
+```
+1. Get Training Session (sit_trainingsessions)
+2. Get Training Product name (products via _sit_trainingid_value)
+3. CONDITION — send only if ALL true:
+     a. sit_date >= utcNow()           (future training only)
+     b. productid ≠ b24df9ab-0a7a-ec11-8d21-000d3aafc422   (excluded type 1)
+     c. productid ≠ b4632176-8769-ed11-9561-6045bd895dae   (excluded type 2)
+4. IF true:
+     a. Get Trainer (systemusers via _sit_trainerid_value)
+     b. Get Contact data (contacts via _sit_contactid_value)
+     c. Get Academy logo from SharePoint
+        Site: zeppelinholdings.sharepoint.com/sites/GP-SITECHWerkvoorbereiding
+        Path: /Shared Documents/General/Academy_pic.png
+     d. Fetch "Academy newsletters" queue (by name, FetchXML)
+     e. Compose HTML email (Dutch, responsive, SITECH Academy branding)
+     f. Create Email activity (To: Contact, From: Academy newsletters queue)
+     g. Send Email (Microsoft.Dynamics.CRM.SendEmail)
+     h. Update sit_contacttraining: sit_confirmationsent = true
+5. ELSE: no action (silently skip excluded products)
+```
+
+**Email content** (Dutch):
+- Subject: *"Bevestiging: Uw toekomstige training bij de SITECH Academy!"*
+- Body includes: course name, participant full name, date (dd-MM-yyyy), time, location
+- Cancellation policy: notify at least 1 week before; costs charged if cancelled within 4 days or no-show
+- Contact: `academy@sitech-nederland.nl` / +31 493 68 10 00
+- Footer: SITECH Academy logo (base64-encoded from SharePoint), link to `www.sitechsolutions.com/nl/training`
+
+**Excluded product GUIDs** (no confirmation email sent):
+| GUID | Likely meaning |
+|------|---------------|
+| `b24df9ab-0a7a-ec11-8d21-000d3aafc422` | Unknown — possibly internal/free training type (undocumented) |
+| `b4632176-8769-ed11-9561-6045bd895dae` | Unknown — possibly another internal type (undocumented) |
+
+> ⚠️ These GUIDs are hardcoded in the flow condition. If the Product records are deleted and recreated, the GUIDs will change and the exclusion will silently stop working.
+
+#### Flow 2: "Copy of - Get upcoming training sessions"
+
+**Flow ID**: `5aba4c9d-4af9-481d-85fb-5eedefe0cb9c` (per manifest)  
+**Display name**: "Copy of - Get upcoming training sessions"  
+**Connection owner**: `alina.zhirkova@sitech-nederland.nl`
+
+> Full definition not yet analysed. The "Copy of -" prefix indicates this is a duplicated flow, not a canonical version. The original "Get upcoming training sessions" flow presumably queries `sit_trainingsessions` and sends reminder emails or a digest. **Requires analysis** — see GAP-X11.
+
+### Functional Requirements
 
 **FR-TR01 — Create Training Sessions**  
-A Training Session is a schedulable event linked to a training Product, assigned to a trainer (system user), with date, time, and location.
+A Training Session is a schedulable event linked to a training Product in the D365 product catalogue, assigned to an internal trainer, with date, time, and location.
 
 **FR-TR02 — Register Contact Attendance**  
-A Contact Training record links a contact to a training session, tracking confirmation, reminder, and certificate communications.
+When a Contact Training record is created (participant registration), the automation flow immediately sends a confirmation email to the Contact in Dutch, unless the training product is excluded or the training date has already passed.
 
 **FR-TR03 — Training Product Catalogue**  
-Training offerings are modelled as Products in the D365 product catalogue (Item Category Code = 'Training', presumably).
+Training offerings are modelled as Products in the D365 product catalogue. At least two product types exist that are excluded from automated confirmation (GUIDs must be documented and treated as configuration, not hardcoded logic).
+
+**FR-TR04 — Confirmation Email via Queue**  
+Confirmation emails are sent from the "Academy newsletters" queue (shared mailbox), not from a personal account. The queue is resolved by name via FetchXML at runtime.
+
+**FR-TR05 — Academy Logo from SharePoint**  
+The email template includes the SITECH Academy logo, fetched at send-time from SharePoint (`GP-SITECHWerkvoorbereiding` site). Logo must remain at the defined path or the flow will fail.
+
+**FR-TR06 — Confirmation Flag**  
+After a confirmation email is sent, `sit_confirmationsent` is set to `true` on the `sit_ContactTraining` record.
+
+**FR-TR07 — Upcoming Sessions (Reminder/Digest)**  
+A second flow ("Get upcoming training sessions") handles upcoming session notifications or reminders. Its exact logic requires analysis.
 
 ---
 
