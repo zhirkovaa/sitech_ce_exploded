@@ -1,267 +1,560 @@
-# Gaps & Open Questions — SITECH Support UX
+# Gaps & Open Questions — SITECH D365 CE (Sales + Support UX)
 
-**Document type**: Gap Analysis  
+**Document type**: Gap & Risk Register  
 **Author role**: Business System Analyst  
-**Solution**: SitechSupportUX v1.0.0.2  
-**Date**: 2026-06-02
+**Sources**: SitechSupportUX solution code, Axelio FDD CESales v0.1 (26-05-2026), FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Sitech data solution (1.0.0.1 managed)  
+**Date**: 2026-06-05  
+**Version**: 1.1
 
 ---
 
 ## How to Read This Document
 
-Each gap is rated by **Impact** (High / Medium / Low) and **Effort to resolve** (High / Medium / Low).  
-Items marked `[BLOCKER]` should be resolved before go-live.
+| Rating | Meaning |
+|--------|---------|
+| **Impact H/M/L** | Business impact if unresolved |
+| **Effort H/M/L** | Effort to design + implement the solution |
+| `[BLOCKER]` | Must be resolved before go-live |
+| `[DECISION]` | Requires a Sitech decision — no action without it |
+| `[DESIGN]` | Requires a functional design before build |
+
+Gaps are grouped by theme. Cross-references to the Axelio comparison document (A1–C10) are included where applicable.
 
 ---
 
-## 1. Integration Gaps
+## SECTION 1 — Sales Module Gaps
 
-### GAP-01 — CE-BC Integration Logic Not Present `[BLOCKER]`
-**Impact**: High | **Effort**: High
+### GAP-S01 — Customer Approval Process Not Designed `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: M | *Ref: A1, A19, C1*
 
-`sit_CaseProductLine` is described as the data source for synchronisation with the back-end ERP (Business Central), but **no Power Automate flow, plugin, or connector is included** in this solution.
+The rule that Account Managers can only create Prospects (not Customers) is stated but not yet designed as a workflow. Three components are missing:
+
+1. **Status field on Account** (Prospect / Customer) with transition rules.
+2. **Approval flow**: Sales Manager receives notification → approves → status changes.
+3. **Quote-to-Order trigger**: On order creation, auto-transition from Prospect to Customer if approval is on file.
+4. **Sync error handling (C1)**: If an order is submitted to BC for a not-yet-approved customer, the connector must return a clear error message to the agent. Currently unverified.
 
 **Questions**:
-- Which system initiates the sync — Dynamics 365 (push) or Business Central (pull)?
-- What triggers synchronisation: status change on the case, a manual button, or a scheduled batch?
-- What is the field mapping between `sit_CaseProductLine` and the BC purchase/sales order line?
+- Does approval happen in CE (via approval flow/Power Automate) or outside?
+- Who can approve when the Sales Manager is unavailable?
+- Should blocked (inactive) accounts be prevented from receiving new orders?
+
+---
+
+### GAP-S02 — Lead Configuration Incomplete `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: A2*
+
+The FDD states "standard process = Lead → Opportunity → Quote → Order" but does not specify:
+- Lead source picklist values.
+- Qualification criteria (when does a Lead become an Opportunity?).
+- Disqualification reason codes.
+- Who is authorised to qualify.
+- Stale opportunity definition (days without activity).
+
+All of the above were detailed in January 2026 sessions with Mark (Sales Manager) and need to be incorporated.
+
+---
+
+### GAP-S03 — Competitor Table and Opportunity Lost Reasons Not Configured `[DESIGN]`
+**Impact**: M | **Effort**: L | *Ref: A3*
+
+Agreed values from Jan 2026 with Mark are not reflected in the FDD or the solution:
+- **Competitors**: None, Leica Geosystems, Unicontrole, CHC-NAV, Topcon, OEM, Others.
+- **Lost Reasons (Opportunity)**: Competitor, Price, Solution fit, Timelines.
+- **Lost Reasons (Quote)**: To be defined.
+
+---
+
+### GAP-S04 — Machine Info Fields on Opportunity Missing `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: A4*
+
+The following custom fields, agreed with Mark on 21-01-2026, are absent from the Opportunity form design:
+- Type, Brand, Reference, Model
+- Specials (yes/no)
+- No follow-ups (separate boolean field)
+- "Add to Summary Competitor"
+
+The FDD only references "SPA012 Machine selection hierarchy" as a development item without the concrete field list.
+
+---
+
+### GAP-S05 — Additional Account Fields Not Confirmed `[DECISION]`
+**Impact**: M | **Effort**: M | *Ref: A5*
+
+The following fields/sections agreed in October 2025 (Marijke session) were not addressed in the May 2026 meeting and are not confirmed in/out of scope:
+- Sales Instructions (free text field)
+- Work Order Instructions (decision: Sales or BC?)
+- Customer Discounts section
+- Finished Goods / Spare Parts / Services tab
+- Segment field
+
+---
+
+### GAP-S06 — Salutation Field on Contact `[DESIGN]`
+**Impact**: L | **Effort**: L | *Ref: A6*
+
+Agreed with Mark/Alina (21-01-2026): a Salutation field must be added to the Contact form. Not mentioned in the FDD.
+
+---
+
+### GAP-S07 — Word Template / PDF Button on Quote `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: A7*
+
+The quotation output format (Word template for customer-facing PDF) is not designed. This is a must-have for customer delivery. Open question from October 2025 session with Marijke. Not addressed in the May 2026 meeting.
+
+**Questions**:
+- Which Word template is used as the base?
+- What is the required layout (logo, line items, discount, trade-in rendering)?
+- Is the PDF emailed directly or saved to SharePoint?
+
+---
+
+### GAP-S08 — Account Manager–to–Customer Assignment Mechanism `[DECISION]`
+**Impact**: M | **Effort**: M | *Ref: A17*
+
+The requirement "link Account Managers to their customers" is noted but not designed. Two options:
+- Use CE record **Owner** field.
+- Use a dedicated lookup field (`Responsible Account Manager`) separate from ownership.
+
+The interaction with BC sync (does BC carry an assigned salesperson?) needs to be clarified.
+
+---
+
+### GAP-S09 — Parent Order for Upsell Tracking `[DESIGN]`
+**Impact**: L | **Effort**: M | *Ref: A18*
+
+A "Parent Order" field on the Order entity and a view showing "which orders have become parent orders" for upsell reporting have not been designed. This was raised in October 2025.
+
+---
+
+### GAP-S10 — OEM Price List CE/BC Sync Decision `[BLOCKER]` `[DECISION]`
+**Impact**: H | **Effort**: M | *Ref: B3*
+
+Contradictory statements exist:
+- Dec 2025: Three price lists proposed (standard, OEM bruto, OEM netto) all syncing to CE.
+- Apr 2026: "OEM price lists will NOT be sent to CE."
+
+This is unresolved. If OEM price lists do not reach CE, Sales cannot create quotes for OEM customers using the correct prices.
+
+**Decision required before integration build.**
+
+---
+
+### GAP-S11 — Discount CE→BC Sync Mismatch `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: M | *Ref: B2*
+
+CE applies a **total-level discount** (amount or %). BC works with **line discounts and invoice discounts** (both as percentages). The CE→BC sync logic for discount translation has not been verified. If the connector converts incorrectly, order values will be wrong in BC.
+
+**Action**: Technical verification of the CE→BC connector discount mapping required before build.
+
+---
+
+### GAP-S12 — Trade-In (Negative Quantity) BC Behaviour Untested
+**Impact**: M | **Effort**: L | *Ref: FDD §4.3*
+
+CE displays negative-quantity lines correctly (in parentheses). BC behaviour when receiving an order with negative lines has not been tested. Risk: BC may reject the order or create incorrect purchase lines.
+
+**Action**: Test trade-in scenario in BC acceptance environment before go-live (action A-09 in FDD).
+
+---
+
+### GAP-S13 — Optional/Required Products in Bundles Not Designed `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: B1*
+
+The two-layer bundle structure (EWV + SBU) is specified, but the **required vs. optional** product flag within a bundle is not:
+- Required: zero-price, not removable.
+- Optional: price visible, removable.
+
+Open question: Does BC have a required/optional flag on BoM lines that can be synced?
+
+---
+
+### GAP-S14 — Trimble Products Without Write-In `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: B10*
+
+Trimble third-party products (handled by Arie) cannot be accommodated with write-in disabled. A proposed solution exists (generic product with editable description/price, BoM via Excel upload in Assembly) from Dec 2025 mail exchange but was not referenced in the May 2026 meeting. This needs to be confirmed as the agreed approach.
+
+---
+
+### GAP-S15 — Sales Order "Lock for Operations" Internal Decision Pending `[DECISION]`
+**Impact**: L | **Effort**: L | *Ref: A20*
+
+The ability to lock a Sales Order for the operations/bedrijfsbureau department has been tested and confirmed working. An internal Sitech decision on when and how to use this feature is still outstanding.
+
+---
+
+### GAP-S16 — Pre-Invoicing Scenario Not Covered in Invoice Sync Design `[DESIGN]`
+**Impact**: H | **Effort**: H | *Ref: A21*
+
+For installations, the customer is invoiced at a fixed price upon delivery, but the BC order may be incomplete (material returns, hour write-offs still pending). A **pre-invoice** is needed; the final cost settlement in BC follows later. The current "Invoices BC → CE read-only" integration design does not address this two-stage invoicing pattern.
+
+---
+
+### GAP-S17 — Multiple Installations on One Sales Order — CE Verification Pending
+**Impact**: M | **Effort**: L | *Ref: C5*
+
+BC supports 2+ installations on one Sales Order. Whether CE handles this correctly (e.g., two bundles on one quote/order) has not been tested.
+
+---
+
+### GAP-S18 — VRS Subscription Placement Unresolved `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: H | *Ref: A8*
+
+VRS subscriptions sold per installation currently auto-link to the installation (Service Item) via BC, which is **undesired**. The preferred behaviour is linking to the main Account location.
+
+Open questions:
+- Can VRS subscriptions be sold stand-alone only (not bundled with installations)?
+- Should invoicing go to the branch location or the head office?
+- Requires a design decision before the Subscriptions sync (IF-11) is built.
+
+---
+
+## SECTION 2 — Support / Customer Service Module Gaps
+
+### GAP-C01 — CE-BC Service Product Sync Absent `[BLOCKER]`
+**Impact**: H | **Effort**: H | *Ref: Original GAP-01; C4*
+
+`sit_CaseProductLine` defines what products are needed per case, but **no Power Automate flow, plugin, or connector** bridges this to BC for fulfilment. Additionally, the SD-type Service Order currently has no value without product synchronisation.
+
+**Questions**:
+- Which direction triggers the sync (CE push or BC pull)?
+- What triggers it: case status change, manual button, or scheduled batch?
+- Field mapping: `sit_CaseProductLine` → BC purchase/sales order line?
 - How are sync errors surfaced to the agent?
-- Is there a status field needed on `sit_CaseProductLine` to track sync state (e.g., Pending / Synced / Error)?
+- Should a `sit_syncstatus` field (Pending / Synced / Error) be added?
 
 ---
 
-### GAP-02 — No Error Handling / Sync Status on Case Product Lines
-**Impact**: High | **Effort**: Medium
+### GAP-C02 — Sub-Asset Filter Not Implemented at Form Level `[DESIGN]`
+**Impact**: M | **Effort**: M
 
-`sit_CaseProductLine` has no status field beyond the standard Active/Inactive. If CE-BC sync fails there is no way to communicate the failure state back to the agent.
+`sit_subasset` should filter to child assets of the selected `sit_asset`, but no fetchXML filter or JavaScript handler enforces this. The field is currently an open lookup.
 
-**Recommendation**: Add a `sit_syncstatus` option-set field (Pending / Synced / Error) and a `sit_syncerror` text field.
+**Clarification needed**: Is the filter implemented in a separate web resource or not yet built?
 
 ---
 
-### GAP-03 — Sub-Asset Filter Logic Not Implemented at Metadata Level
-**Impact**: Medium | **Effort**: Medium
+### GAP-C03 — Canvas App Logic Not Auditable `[BLOCKER for Quality Review]`
+**Impact**: H | **Effort**: L
 
-`sit_subasset` is documented as "filtered by the selected asset," but the solution XML contains no filter fetchXML or JavaScript handler to enforce this filtering at the form level. The field is an open lookup.
+Both Canvas Apps are delivered as compiled `.msapp` binaries. Business logic, formulas, data connections, delegation behaviour, and navigation flows cannot be reviewed or audited.
 
 **Questions**:
-- Is the filtering implemented in a JavaScript web resource outside this solution package?
-- Is it implemented via form OnLoad / OnChange events in a separate customisation?
-- If not yet built, what is the parent-child relationship criterion — is it `msdyn_parentasset` on `msdyn_customerasset`?
+- Are unpacked source files available?
+- Have the apps been reviewed for non-delegable queries (performance risk)?
+- What Dataverse connectors and environment variables do they use?
 
 ---
 
-## 2. Business Logic Gaps
+### GAP-C04 — Product List Commit Mechanism Undefined `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: M
 
-### GAP-04 — No Validation Rules for sit_totaltime
-**Impact**: Medium | **Effort**: Low
-
-`sit_totaltime` has no minimum, maximum, or format validation defined. An agent could enter 0 or a negative number.
-
-**Questions**:
-- Is there a minimum billable time increment (e.g., must be a multiple of 15 minutes)?
-- Should the field auto-populate from activity durations (phone calls, appointments) on the case?
-- Should it be editable once the case is resolved/closed?
+The Service Item Components Canvas App has a staging gallery and an "Add to Product List" button, but:
+- When/how does the staged list commit to `sit_CaseProductLine` records?
+- Which case does it link to?
+- What happens if the user closes the app without committing?
 
 ---
 
-### GAP-05 — No Business Rules for Required Fields Beyond Asset
-**Impact**: Medium | **Effort**: Low
+### GAP-C05 — "Create Case from Asset" Flow Undefined `[DESIGN]`
+**Impact**: M | **Effort**: M
 
-Only `sit_asset` is marked required. There is no business rule enforcing that at least one Case Product Line exists before a case can be resolved, or that `sit_totaltime` is populated before closure.
-
-**Questions**:
-- Should cases be blocked from resolution unless at least one product line exists?
-- Is `sit_totaltime` mandatory before case closure for billing purposes?
-
----
-
-### GAP-06 — Machine Reference Data (Brand / Model / Type) Has No Seeded Data
-**Impact**: Medium | **Effort**: Medium
-
-The three reference entities (`sit_MachineBrand`, `sit_MachineModel`, `sit_MachineType`) are defined but the solution contains **no reference data** (no import maps, no data files).
-
-**Questions**:
-- Who is responsible for populating these reference entities?
-- Is there a master list in the current system (spreadsheet, ERP) to be migrated?
-- Should Model be filtered by Brand (cascading dropdowns)? Currently there is no relationship between Brand and Model.
-- Should Type drive different service workflows or SLAs?
-
----
-
-### GAP-07 — Cascading Relationship Between Brand, Model, and Type Not Modelled
-**Impact**: Medium | **Effort**: Medium
-
-The three reference entities are independent; there is no parent-child relationship between Brand → Model → Type, which is the typical hierarchy for machinery.
-
-**Recommendation**: Define whether a Machine Model must belong to a Machine Brand, and whether a Machine Type is independent or a sub-classification of Brand/Model. Update the data model accordingly.
-
----
-
-### GAP-08 — No Duplicate Detection on Case Product Lines
-**Impact**: Low | **Effort**: Low
-
-An agent can add the same product multiple times to the same case, resulting in duplicate lines. There is no duplicate detection rule defined.
-
-**Question**: Should duplicate products be merged (summing quantities), blocked, or allowed (for cases where the same product is needed for different purposes)?
-
----
-
-## 3. UX / Canvas App Gaps
-
-### GAP-09 — Canvas App Source Code Not Readable `[BLOCKER for Review]`
-**Impact**: High | **Effort**: Low (documentation only)
-
-Both canvas apps are shipped as compiled `.msapp` binary files. The UI logic, formulas, data connections, and navigation flows **cannot be reviewed or audited** from this solution package alone.
-
-**Questions**:
-- Are the source `.msapp` files or unpacked source folders available for review?
-- Have the apps been peer-reviewed for performance anti-patterns (e.g., non-delegable queries)?
-- What data sources / connectors are the apps using — Dataverse connectors, custom connectors, environment variables?
-
----
-
-### GAP-10 — No Responsive / Accessibility Requirements Documented
-**Impact**: Medium | **Effort**: Medium
-
-There are no documented screen size targets, accessibility (WCAG) requirements, or browser compatibility constraints for the Canvas Apps.
-
-**Questions**:
-- Are the apps used on desktop only, or also on tablets / phones?
-- Must the apps comply with any accessibility standard (e.g., WCAG 2.1 AA)?
-
----
-
-### GAP-11 — "Create Case from Asset" Flow Undefined
-**Impact**: Medium | **Effort**: Medium
-
-The exploded view app has an `icCreateCase` button, but there is no specification of:
+The exploded view app has a "Create Case" icon but no specification for:
 - Which Case form is opened.
 - Which fields are pre-populated (asset, sub-asset, account?).
-- Whether it opens in the same app or navigates to the model-driven Case form.
+- Whether it opens in the app or navigates to the model-driven form.
 
 ---
 
-### GAP-12 — "Add to Product List" Commit Mechanism Undefined
-**Impact**: High | **Effort**: Medium
+### GAP-C06 — Case Status Reasons Not Confirmed in Solution
+**Impact**: M | **Effort**: L | *Ref: A10*
 
-The Service Item Components app has a staging gallery (`galNewProductsList`) and an `btnAddToProductList` button, but there is no specification for:
-- When / how the staged list is committed to `sit_CaseProductLine` records.
-- Whether the commit is linked to a specific case (which case?).
-- What happens if the user closes the app without committing.
+The case status model (In Progress / On Hold / Waiting for Details / Researching / Problem Solved / Information Provided / Cancelled / Merged) was designed on 17-12-2025 but was not confirmed in the 26-05-2026 Support CE meeting and is not reflected in the current solution package.
 
 ---
 
-## 4. Security & Access Control Gaps
+### GAP-C07 — Merge / Similar / Parent-Child Cases — No Decision `[DECISION]`
+**Impact**: M | **Effort**: M | *Ref: A11*
 
-### GAP-13 — No Custom Security Roles Defined
-**Impact**: High | **Effort**: Medium
+No decision has been made on whether to enable Merge Cases, Similar Cases, and Parent-Child Case functionality. These must either be configured (if used) or explicitly excluded from UX and business logic.
 
-The solution does not include any custom security roles. All six custom entities default to platform-level access, which means existing roles (e.g., Customer Service Agent) may not have create/read/write permissions on `sit_CaseProductLine`, `sit_ServiceBillofMaterials`, etc.
+---
+
+### GAP-C08 — Credits & Entitlements Not Designed `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: H | *Ref: A12, A14*
+
+The entire Credits & Entitlements topic was not addressed in the 26-05-2026 Support CE meeting, yet it directly affects whether cases can be opened and how support time is billed.
+
+**Missing decisions**:
+- Use D365 Entitlements? If yes, define levels and duration.
+- Credit balance: by Account or by Installation?
+- Free threshold before credits are consumed.
+- Invoicing logic for negative credit balance.
+- Whether Entitlements are scoped at channel, product, Asset, or Account level.
+
+---
+
+### GAP-C09 — SLA Decision Absent `[DECISION]`
+**Impact**: M | **Effort**: M | *Ref: A13*
+
+Whether D365 SLA functionality will be used has not been decided. If SLAs are used, levels and response/resolution targets must be defined. This affects case routing and escalation logic.
+
+---
+
+### GAP-C10 — Machine Driver (Asset-Contact Link) Not Fully Defined `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: A15*
+
+The concept of a Machine Driver (operator/contact associated with a specific asset) was discussed but not resolved. The one-to-one Contact ↔ Service Item link in the current solution is a partial answer. The unique number mechanism for machine drivers still needs design.
+
+---
+
+### GAP-C11 — Short vs. Normal Case Registration — No Process Decision `[DECISION]`
+**Impact**: M | **Effort**: L | *Ref: A16*
+
+The proposal to handle short contacts as Phone Call activities (no case record) vs. normal contacts via the Quick Create Case form has not been formally decided. This affects training, queue configuration, and reporting.
+
+---
+
+### GAP-C12 — Case-to-Service Order Conversion Rules Not Fully Defined `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: B6, B7*
+
+- The Work Order route is decided out (Case → BC Service Order is correct). However, the Work Order route is not explicitly excluded in the meeting notes — this should be formally documented.
+- Open question: Can one case be converted to a Service Order more than once (e.g., one SE and one SI)?
+- Support visibility of all Work/Service Orders associated with an Asset or Customer is not defined.
+
+---
+
+### GAP-C13 — Asset/Installation Timeline Configuration Not Designed `[DESIGN]`
+**Impact**: M | **Effort**: M | *Ref: A9*
+
+A detailed design for the Asset timeline and Account timeline is missing:
+- Should BC post final activities to the case timeline after a Service Order is completed?
+- Which specific CRM metrics are shown (red flags, frequency of orders, etc.)?
+
+---
+
+### GAP-C14 — No Custom Security Roles in Delivered Solution `[BLOCKER]`
+**Impact**: H | **Effort**: M
+
+The SitechSupportUX solution package contains no custom security roles. Out-of-the-box roles (e.g., Customer Service Agent) may not have create/read/write permissions on the 6 custom entities by default.
 
 **Questions**:
 - Which roles need access to each custom entity?
-- Should field-level security be applied to any fields (e.g., restricting `sit_totaltime` edits to managers only)?
-- Are the Canvas Apps intended for all Customer Service Agents or a specific team?
+- Should field-level security be applied to any fields?
+- Who should have access to the Canvas Apps?
 
 ---
 
-### GAP-14 — Owner / Owning Business Unit on sit_CaseProductLine
-**Impact**: Low | **Effort**: Low
+### GAP-C15 — No Validation Rules on sit_totaltime
+**Impact**: M | **Effort**: L
 
-`sit_CaseProductLine` is a user-owned entity. In a multi-BU organisation this could cause records to become inaccessible if the owning agent leaves or changes team.
-
-**Question**: Should ownership follow the parent case, or should it be organisation-owned (no owner)?
-
----
-
-## 5. Data & Migration Gaps
-
-### GAP-15 — No Data Migration Plan
-**Impact**: High | **Effort**: High
-
-The solution adds required/recommended fields (`sit_asset`) to the Case entity. Existing cases will have null values in these fields.
+`sit_totaltime` has no min/max or format validation. An agent can enter 0 or a negative number.
 
 **Questions**:
-- How many existing case records are in the target environment?
-- Will historical cases need to be back-filled with asset references?
-- Will the required field validation block edits to historical cases that lack an asset?
+- Minimum billing increment (e.g., multiples of 15)?
+- Should it auto-populate from activity durations?
+- Editable after case closure?
 
 ---
 
-### GAP-16 — No Reference Data Migration Tooling
-**Impact**: Medium | **Effort**: Medium
+### GAP-C16 — No Business Rules for Case Closure Prerequisites
+**Impact**: M | **Effort**: L
 
-No configuration data migration (CDM) file or data import template is provided for Brand, Model, and Type reference entities.
-
-**Recommendation**: Provide an Excel/CSV template and a Configuration Migration Tool schema file for reference data seeding.
+No business rule enforces that at least one Case Product Line exists before closing, or that `sit_totaltime` is populated before resolution.
 
 ---
 
-## 6. Testing & Quality Gaps
+## SECTION 3 — Integration Gaps (Technical)
 
-### GAP-17 — No Test Plan or Acceptance Criteria
-**Impact**: High | **Effort**: Medium
+### GAP-T01 — Power Automate Flows Not Designed `[BLOCKER]` `[DESIGN]`
+**Impact**: H | **Effort**: H | *Ref: C6, G-09 in FDD*
 
-The repository contains no test scripts, UAT scenarios, or acceptance criteria.
+The following Power Automate flows are mentioned as requirements but have not been designed or built:
 
-**Recommendation**: Define at minimum:
-- Happy path: Create a case, link asset + sub-asset, add product lines, verify CE-BC sync trigger.
-- Edge cases: Case with no sub-asset, case with 10+ product lines, duplicate product line attempt.
-- Regression: Existing cases unaffected by new required field.
-
----
-
-### GAP-18 — No Automated Solution Checker Results
-**Impact**: Low | **Effort**: Low
-
-The solution has not been validated with the **Power Apps Solution Checker** (static analysis tool). There may be undiscovered issues with deprecated components or performance warnings.
-
-**Recommendation**: Run Solution Checker and attach results before go-live.
+| Flow | Trigger | Action |
+|------|---------|--------|
+| SharePoint customer folder | Account created | Create folder on SharePoint |
+| SharePoint folder rename | Account name changed | Rename folder on SharePoint |
+| SharePoint Service Item folder | Service Item created | Create subfolder with naming convention |
+| SharePoint Service Order subfolder | Service Order created | Create date-stamped subfolder |
+| Prospect → Customer approval | Sales Manager approves | Update Account status |
 
 ---
 
-## 7. Documentation Gaps
+### GAP-T02 — Service Item SharePoint Migration `[BLOCKER for Go-Live]`
+**Impact**: H | **Effort**: H | *Ref: C7, C8*
 
-### GAP-19 — README is Empty
-**Impact**: Low | **Effort**: Low
+When legacy Service Items are imported from the old CE, their SharePoint links are lost. A migration flow is needed to:
+1. Rename existing SharePoint folders to the new naming convention: `<YYYYMMDD> - <Customer> - <Assembly Order No.> - <Installation Name>`.
+2. Re-establish the SharePoint–CE link for each record.
 
-The `README.md` contains a single placeholder line. There is no developer setup guide, import checklist, or environment setup documentation.
+This is a significant migration task with no plan or owner assigned.
 
 ---
 
-### GAP-20 — No User Guide / Training Material
-**Impact**: Medium | **Effort**: Medium
+### GAP-T03 — Subscription-from-BoM: No Technical Solution `[DESIGN]`
+**Impact**: M | **Effort**: H | *Ref: C2*
 
-No end-user documentation or training material is included for service agents who will use the modified Case forms and Canvas Apps.
+When a Subscription (SIM card or Software licence) is a BoM component, CE cannot automatically create or link a Subscription record from that BoM entry. The "Customer Contracts read-only" decision does not resolve this structural problem.
+
+---
+
+### GAP-T04 — Exploded View → Assembly Orders Link Undefined `[DESIGN]`
+**Impact**: M | **Effort**: H | *Ref: C3*
+
+A requirement exists to navigate from the Exploded View Canvas App to create X Assembly Orders in BC. This is not designed or built.
+
+---
+
+### GAP-T05 — Solutions Architecture Not Formally Confirmed `[DECISION]`
+**Impact**: M | **Effort**: L | *Ref: C9*
+
+The architectural decision "multiple solutions per app with a shared base solution for common tables; Sales in Sales Hub; Support in Customer Service / Field Service Hub — do not merge into one app" was proposed in October 2025 but not formally confirmed in May 2026.
+
+---
+
+### GAP-T06 — Personalization Disabled in Support Only
+**Impact**: L | **Effort**: L | *Ref: C10*
+
+Centralized personalization disable (same screen for all users per role) is confirmed for the Support module but was not confirmed for the Sales module in the May 2026 meeting. For consistency, the Sales module should follow the same approach. Needs explicit confirmation.
+
+---
+
+## SECTION 4 — Data and Reference Data Gaps
+
+### GAP-D01 — No Reference Data Seeded (Brand/Model/Type)
+**Impact**: M | **Effort**: M | *Original GAP-06*
+
+The `sit_MachineBrand`, `sit_MachineModel`, and `sit_MachineType` entities are defined but contain no data. No import template or Configuration Migration Tool schema is included.
+
+**Questions**:
+- Who owns and maintains these reference entities?
+- Is there a master list in BC or a spreadsheet to be migrated?
+- Should Model be filtered by Brand (cascading lookups)? Currently no relationship exists between Brand and Model.
+
+---
+
+### GAP-D02 — Brand/Model/Type Hierarchy Not Modelled
+**Impact**: M | **Effort**: M | *Original GAP-07*
+
+The three reference entities are independent. Typical machinery hierarchy: Brand → Model → Type. If this hierarchy is needed for filtering on Opportunity or Asset forms, the relationships need to be defined.
+
+---
+
+### GAP-D03 — No Data Migration Plan for Existing Cases `[BLOCKER]`
+**Impact**: H | **Effort**: H | *Original GAP-15*
+
+`sit_asset` is a required field on Case. Existing cases have null values. Options:
+- Back-fill asset references on historical cases (manual or automated).
+- Mark `sit_asset` as required only for new cases (business rule conditional).
+- Accept that historical cases cannot be re-opened/edited without adding an asset.
+
+A decision and migration plan are needed before go-live.
+
+---
+
+### GAP-D04 — Country Table Migration
+**Impact**: M | **Effort**: L
+
+The custom Country entity for the Sales module requires an initial load from BC. No import procedure or schedule is defined.
+
+---
+
+### GAP-D05 — Activities Data Migration (TBD)
+**Impact**: M | **Effort**: H
+
+The data conversion table in the FDD marks Activities (in CE/Dataverse) as "NTB" (to be determined). Leads, Opportunities, Quotes, and Orders from the existing CRM have no migration plan. Volume and quality of existing data is unknown.
+
+---
+
+## SECTION 5 — Testing, Quality, and Documentation Gaps
+
+### GAP-Q01 — No Test Plan or Acceptance Criteria `[BLOCKER]`
+**Impact**: H | **Effort**: M
+
+Neither the Sales FDD nor the Support solution package includes test scenarios or acceptance criteria.
+
+**Recommended minimum test coverage**:
+
+| Scenario | Module |
+|----------|--------|
+| Lead → Opportunity → Quote → Order → BC sync | Sales |
+| Prospect approval → Customer creation | Sales |
+| Quote with trade-in (negative line) → BC | Sales |
+| Bundle product with OEM pricing → Quote | Sales |
+| Case creation with asset + sub-asset | Support |
+| Case Product Lines → (future) CE-BC sync | Support |
+| Case closure with status reason (Sales/Service/Field) | Support |
+| Canvas App: search asset → create case | Support |
+| SharePoint folder auto-creation on Account | Both |
+| Blocked customer order rejection with error | Sales |
+
+---
+
+### GAP-Q02 — Canvas Apps Not Peer-Reviewed
+**Impact**: M | **Effort**: L
+
+The compiled `.msapp` binaries prevent formula, delegation, and connector review. A structured review of the uncompiled source is needed before go-live.
+
+---
+
+### GAP-Q03 — No Solution Checker Run
+**Impact**: L | **Effort**: L
+
+Power Apps Solution Checker (static analysis) has not been run against the SitechSupportUX package. Deprecated components or performance warnings may exist.
+
+---
+
+### GAP-Q04 — README and Developer Documentation Empty
+**Impact**: L | **Effort**: L
+
+The repository README contains a single placeholder line. There is no import checklist, environment setup guide, or dependency verification procedure.
+
+---
+
+### GAP-Q05 — No User Guide or Training Material
+**Impact**: M | **Effort**: M
+
+No end-user training material is included for Sales agents (quote creation, product selection, discount entry) or Service agents (case creation with asset, canvas app usage).
 
 ---
 
 ## Summary Table
 
-| ID | Description | Impact | Effort | Blocker? |
-|----|-------------|--------|--------|----------|
-| GAP-01 | CE-BC integration logic missing | High | High | Yes |
-| GAP-02 | No sync status on Case Product Lines | High | Medium | |
-| GAP-03 | Sub-asset filter not implemented | Medium | Medium | |
-| GAP-04 | No validation on sit_totaltime | Medium | Low | |
-| GAP-05 | No business rules for case closure | Medium | Low | |
-| GAP-06 | No reference data seeded | Medium | Medium | |
-| GAP-07 | Brand/Model/Type not related | Medium | Medium | |
-| GAP-08 | No duplicate detection on product lines | Low | Low | |
-| GAP-09 | Canvas app binaries unreadable | High | Low | Yes |
-| GAP-10 | No accessibility/responsive requirements | Medium | Medium | |
-| GAP-11 | Create Case from asset flow undefined | Medium | Medium | |
-| GAP-12 | Product list commit mechanism undefined | High | Medium | |
-| GAP-13 | No custom security roles | High | Medium | |
-| GAP-14 | CaseProductLine ownership model | Low | Low | |
-| GAP-15 | No data migration plan | High | High | |
-| GAP-16 | No reference data migration tooling | Medium | Medium | |
-| GAP-17 | No test plan / acceptance criteria | High | Medium | |
-| GAP-18 | No Solution Checker run | Low | Low | |
-| GAP-19 | README is empty | Low | Low | |
-| GAP-20 | No user guide / training material | Medium | Medium | |
+### Blockers (Must resolve before go-live)
+
+| ID | Description | Module |
+|----|-------------|--------|
+| GAP-S01 | Customer approval process not designed | Sales |
+| GAP-S10 | OEM price list CE/BC sync decision contradictory | Sales |
+| GAP-S11 | Discount CE→BC mapping unverified | Sales |
+| GAP-S18 | VRS subscription placement unresolved | Both |
+| GAP-C01 | CE-BC service product sync absent | Support |
+| GAP-C03 | Canvas app binaries not auditable | Support |
+| GAP-C04 | Product list commit mechanism undefined | Support |
+| GAP-C08 | Credits & Entitlements not designed | Support |
+| GAP-C14 | No custom security roles in solution | Support |
+| GAP-D03 | No data migration plan for existing cases | Support |
+| GAP-T01 | Power Automate flows not designed | Both |
+| GAP-T02 | Service Item SharePoint migration unplanned | Both |
+| GAP-Q01 | No test plan or acceptance criteria | Both |
+
+### High Impact (Non-Blocker)
+
+| ID | Description | Module |
+|----|-------------|--------|
+| GAP-S02 | Lead configuration incomplete | Sales |
+| GAP-S03 | Competitor table + lost reasons missing | Sales |
+| GAP-S04 | Machine Info fields on Opportunity | Sales |
+| GAP-S07 | Word template / PDF button undefined | Sales |
+| GAP-S16 | Pre-invoicing scenario not in design | Sales |
+| GAP-C02 | Sub-asset filter not implemented | Support |
+| GAP-C09 | SLA decision absent | Support |
+| GAP-C12 | Case-to-service order rules incomplete | Support |
+| GAP-T03 | Subscription-from-BoM unsolved | Both |
+| GAP-D05 | Activities data migration TBD | Both |
 
 ---
 
-*End of Gap Analysis*
+*End of Gap & Risk Register — v1.1*  
+*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)*

@@ -1,46 +1,47 @@
-# Functional Specification — SITECH Support UX (SitechSupportUX v1.0.0.2)
+# Functional Specification — SITECH D365 CE (Sales + Support UX)
 
 **Document type**: Functional Specification  
 **Author role**: Business System Analyst  
-**Solution**: SitechSupportUX  
-**Publisher**: SITECH Netherlands  
-**Platform**: Microsoft Dynamics 365 Customer Service / Power Platform  
-**Date**: 2026-06-02  
-**Version**: 1.0
+**Solution scope**: D365 CE Sales Hub + SitechSupportUX v1.0.0.2 (Customer Service)  
+**Implementer**: Axelio B.V. (Marijke Kerkhove / Renger Reitsema)  
+**Functional owner (Sitech)**: René van der Linden  
+**Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
+**Date**: 2026-06-05 (enriched with all source documents)  
+**Version**: 1.1
 
 ---
 
 ## 1. Executive Summary
 
-SITECH Support UX is a Microsoft Dynamics 365 Customer Service customisation solution developed for SITECH Netherlands. It enriches the standard case management process with **asset-aware service handling**, a **hierarchical parts/component structure**, **product requirements tracking per case**, and **two Power Apps Canvas applications** that give service agents a modern, asset-centric interface.
+Sitech Netherlands is implementing Microsoft Dynamics 365 Customer Engagement (CE) in two modules:
 
-The solution is delivered as an unmanaged Dynamics 365 solution package (ZIP) to be imported into an existing Dynamics 365 Customer Service environment.
+1. **D365 CE Sales Hub** — supports the commercial process: lead management, opportunity tracking, quotation, order confirmation, and invoice visibility.
+2. **SitechSupportUX** — extends D365 Customer Service with asset-aware case management, product/BoM tracking per case, and two Power Apps Canvas applications for service engineers.
+
+Business Central (BC) remains the **single source of truth** for all financial master data (customers, products, prices). CE orchestrates the commercial and service process on top of BC data.
 
 ---
 
 ## 2. Business Context
 
-### 2.1 Business Problem
+### 2.1 Background
 
-SITECH Netherlands provides technical support for specialised machinery (construction/surveying equipment). Engineers must:
-
-- Identify the exact machine (asset) that a customer is calling about.
-- Understand the asset's sub-components (e.g., an installed sensor module on a machine).
-- Record what spare parts or products are required to resolve the case so that the back-end (ERP/supply chain) can fulfill the order.
-- Track total support time per case for billing and reporting.
-
-The out-of-the-box Dynamics 365 Case form does not accommodate these needs, hence the customisation.
+Sitech provides technical support and sales for specialised construction/surveying machinery (Trimble, etc.). Their current CRM lacks:
+- Structured lead and opportunity management linked to equipment types.
+- Quotation and order flow connected in real time to BC.
+- Asset-centric service case management (knowing which machine a call is about, what components it contains, what spare parts are needed).
 
 ### 2.2 Business Objectives
 
-| # | Objective |
-|---|-----------|
-| 1 | Link every service case directly to a registered customer asset. |
-| 2 | Support hierarchical asset structures (installation → component). |
-| 3 | Capture the bill of materials (products + quantities) needed for case resolution. |
-| 4 | Synchronise required products with the back-end system (CE-BC integration). |
-| 5 | Reduce case creation time by providing an asset-browser canvas app. |
-| 6 | Provide accurate time-tracking per case for billing. |
+| # | Objective | Module |
+|---|-----------|--------|
+| 1 | Digitalise the Lead → Opportunity → Quote → Order flow in CE. | Sales |
+| 2 | Synchronise BC master data (customers, products, prices) into CE as read-only. | Sales |
+| 3 | Push accepted Sales Orders from CE to BC in real time. | Sales |
+| 4 | Link every service case to a registered customer asset (machine). | Support |
+| 5 | Track bill-of-materials requirements per case for CE→BC fulfillment. | Support |
+| 6 | Provide an asset-browser Canvas App to speed up case creation. | Support |
+| 7 | Give sales agents visibility into cases, service items, and contracts on the Account. | Both |
 
 ---
 
@@ -48,300 +49,636 @@ The out-of-the-box Dynamics 365 Case form does not accommodate these needs, henc
 
 ### 3.1 In Scope
 
-- Custom Dynamics 365 entities (6 new entities).
-- Extensions to standard entities: **Incident (Case)**, **Customer Asset (msdyn_customerasset)**.
-- Two Power Apps Canvas applications.
-- Modified standard Case forms (7 form variants).
-- AI Form-Fill configuration for the Case entity.
-- Reference data structures for machine brand, model, and type.
+**Sales module**
+- D365 CE Sales Hub configuration and customisation.
+- BC ↔ CE integration for accounts, contacts, products/BoM, price lists, orders, invoices.
+- SharePoint document management per customer.
+- Security roles for Sales.
+- Personal and team dashboards.
+
+**Support / Customer Service module (SitechSupportUX v1.0.0.2)**
+- Custom entities: Case Product Lines, Machine Brand/Model/Type reference data, Service BoM, Service Item Components.
+- Extensions to Incident (Case) and Customer Asset entities.
+- Two Power Apps Canvas applications (Customer Assets Exploded View, Service Item Components).
+- Modified Case forms (7 variants).
 
 ### 3.2 Out of Scope
 
-- Back-end ERP integration logic (CE-BC connector / middleware).
-- Authentication and identity management.
-- Power Automate flows (none present in this solution package).
-- Reporting dashboards (not included in this package).
-- Mobile offline configuration.
+| Item | Status |
+|------|--------|
+| D365 Field Service | Separate track |
+| Marketing module | Decision open (Dieuwertje) |
+| Power BI reporting | Separate track |
+| Goals / Forecasting in CE | Decided out — Power BI only |
+| CE → BC integration middleware/connector logic | External to this solution package |
 
 ---
 
 ## 4. Actors and Personas
 
-| Actor | Description | Primary Interaction |
-|-------|-------------|---------------------|
-| **Service Agent** | First-line support; creates and manages cases. | Case forms, Canvas Apps |
-| **Field Engineer** | Executes on-site service; may update case details post-visit. | Case forms |
-| **Service Manager** | Oversees queue, escalation, and KPIs. | Views, Dashboards (external) |
-| **System Administrator** | Manages the Dynamics 365 environment. | Solution import, security roles |
-| **Back-End System (CE-BC)** | ERP / supply chain system that consumes product requirements. | API / integration layer |
+| Actor | Description | Primary Modules |
+|-------|-------------|----------------|
+| **Account Manager** | Creates and manages Leads, Opportunities, Quotes, Orders. Cannot create Customers (only Prospects). | Sales |
+| **Sales Manager** | Same as Account Manager + team reporting + approves new customers. | Sales |
+| **Director** | Read-only view at team level, equivalent to Sales Manager. | Sales |
+| **Service Agent (Inside)** | Creates and manages cases, links assets, records time and product requirements. | Support |
+| **Field Engineer** | Updates cases post-visit, uses asset exploded view. | Support |
+| **Service Manager** | Oversees queue and case routing. | Support |
+| **Sales Admin (Axelio)** | Full administrative access during implementation. | Both |
+| **Back-end System (BC)** | Source of master data; consumer of Sales Orders. | Integration |
 
 ---
 
-## 5. Functional Requirements
+## 5. Sales Module — Functional Requirements
 
-### 5.1 Asset Linkage on a Case
+### 5.1 Sales Process
 
-**FR-01 — Link Asset to Case**  
-When creating or updating a Case, the agent **must** select a Customer Asset (`sit_asset`). This field is **required**.
+The standard D365 sales pipeline is adopted unchanged:
 
-**FR-02 — Link Sub-Asset (Component) to Case**  
-The agent **may** optionally select a Sub-Asset (`sit_subasset`), which is a child asset of the selected asset. The lookup is filtered to assets that are children of the selected asset.
+| Step | Entity | Description |
+|------|--------|-------------|
+| 1 | Lead *(optional)* | Qualify or disqualify a new contact/company. |
+| 2 | Opportunity | Record sales chance with customer, contact, value, and expected close date. |
+| 3 | Quote | Create quotation from opportunity; version management (Revise) supported. |
+| 4 | Order | Accepted quote converted to order; order pushed to BC in real time. |
+| 5 | Invoice | Created in BC; synced to CE as read-only. |
 
-**FR-03 — Asset & Installation Info Display**  
-The Case form displays contextual installation information based on the selected asset, without requiring the agent to navigate away.
+> **Open decision (V-01)**: Sitech to define internally when a Lead is created versus starting directly with an Opportunity or Activity.
 
-### 5.2 Total Time Tracking
+### 5.2 Account Management
 
-**FR-04 — Record Support Duration**  
-The agent records the total time spent on a case in the `sit_totaltime` field (integer, minutes). This field appears on all Case form variants.
+**FR-S01 — Customer vs. Prospect Distinction**  
+An Account Manager can only create a **Prospect** record. The relationship type **Customer** requires approval from the Sales Manager. When a Quote is converted to an Order, the status automatically transitions from Prospect to Customer, provided Sales Manager approval has been granted.
 
-**FR-05 — AI Form Fill Exclusion**  
-The AI-assisted form-fill feature is explicitly disabled for `sit_totaltime` to prevent incorrect AI-populated values. Time must be entered manually.
+**FR-S02 — Account Form Tabs**  
+The Account form must include the following tabs:
 
-### 5.3 Case Product Lines
+| Tab | Source | Type | Priority |
+|-----|--------|------|----------|
+| Opportunities | CE | Related records | Must have |
+| Quotes | CE | Related records | Must have |
+| Orders | CE | Related records | Must have |
+| Invoices | BC → CE sync | Read-only | Must have |
+| Cases | CE Customer Service | Read-only for Sales | Must have |
+| Service Items | BC → CE sync | Sales form (installation level only) | Must have |
+| Documents | SharePoint | SharePoint integration | Must have |
+| Customer Contracts/Subscriptions | BC → CE sync | Read-only; fields TBD | Wish |
 
-**FR-06 — Add Products Required for Case Resolution**  
-Agents can create one or more **Case Product Line** records linked to a case, each specifying:
-- Product (lookup to product catalogue) — **required**
-- Quantity (integer) — **required**
+**FR-S03 — BC Read-Only Fields on Account**  
+The following fields are synchronised from BC and locked in CE:
+- Customer name, address details
+- Payment terms
+- Discount group (value, e.g. "15%")
+- Parent-child account relationship
+- Active/inactive status (blocked customer → deactivate in CE)
 
-**FR-07 — View Product Lines on Case**  
-A sub-grid on the Case form lists all Case Product Lines for the current case, with inline add/edit capability.
+**FR-S04 — Country/Region Lookup**  
+A custom **Country** table is created in Dataverse, populated by BC sync. Address fields use a lookup to this table. A workflow/automation updates the `Address1_Country` text field with the correct country code on selection, ensuring BC integration does not fail.
 
-**FR-08 — CE-BC Synchronisation**  
-Case Product Lines serve as the data source for synchronisation with the back-end ERP. (Integration mechanism is external to this solution.)
+**FR-S05 — Account Hierarchy View**  
+Where accounts have a parent (HQ) relationship, the system must represent this in a hierarchical list/view (e.g., Heijmans group structure).
 
-### 5.4 Customer Asset Exploded View (Canvas App 1)
+**FR-S06 — Account Manager Assignment**  
+Each Account must be linked to an owner (Account Manager). The ownership mechanism and its interaction with the BC sync must be defined.
 
-**FR-09 — Search Assets by Serial Number or Part Number**  
-The agent enters a serial number or part number in a search box. The app returns matching Customer Assets.
+**FR-S07 — Additional Fields on Account (to be confirmed with René)**  
+The following fields were agreed in earlier sessions and need confirmation of inclusion:
+- Sales Instructions (free text)
+- Work Order Instructions (or in BC — decision pending)
+- Customer Discounts section
+- Finished Goods / Spare Parts / Services tab/section
+- Segment field
 
-**FR-10 — Browse Service Bill of Materials**  
-For a selected asset, the app displays associated **Service Bill of Materials** records in a gallery.
+### 5.3 Contact Management
 
-**FR-11 — Browse Service Item Components**  
-For a selected asset, the app displays associated **Service Item Components** in a gallery, showing:
-- Product ID
-- Product Name
-- Serial Number
-- Quantity
+**FR-S08 — Contact Form Simplification**  
+Address fields are removed from the Contact form (already present on the Account). Additional fields to be determined with Sitech.
 
-**FR-12 — Expand Installation Details**  
-The agent can expand an installation entry to reveal its sub-components.
+**FR-S09 — Salutation Field**  
+A Salutation field must be added to the Contact form.
 
-**FR-13 — Create Case from Asset Context**  
-From the exploded view, the agent can initiate case creation pre-populated with the selected asset.
+**FR-S10 — Duplicate Detection**  
+Duplicate detection rules are configured for Accounts and Contacts. Fields for detection rules to be agreed with Sitech.
 
-### 5.5 Service Item Components App (Canvas App 2)
+### 5.4 Lead Management
 
-**FR-14 — Browse Customer Assets**  
-The agent uses a lookup control to navigate to a customer asset.
+**FR-S11 — Lead Sources**  
+The Lead Source field must be populated with: Referral, Website, Exhibition, Inbound Call, Outbound Call, E-Mail, Social Media, Other.
 
-**FR-15 — View Service Items for an Asset**  
-A gallery lists all service items linked to the selected asset.
+**FR-S12 — Lead Qualification**  
+Leads can be qualified to Opportunities by: salesperson, team lead, or Account Director. Qualification criteria to be defined.
 
-**FR-16 — Add Products to New Product List**  
-The agent selects service item components and adds them to a staging list (galNewProductsList).
+**FR-S13 — Lead Disqualification Reasons**  
+Status reasons for disqualified Leads must be configured (list to be defined with Mark/Sales Manager).
 
-**FR-17 — Manage Product List Before Submission**  
-The agent reviews and adjusts the staged product list before it is committed as Case Product Lines.
+**FR-S14 — Stale Opportunity Alerting**  
+Mechanism to flag Opportunities that have had no activity for a configurable number of days.
 
-### 5.6 Machine Reference Data
+### 5.5 Opportunity Management
 
-**FR-18 — Machine Brand Management**  
-The `sit_MachineBrand` entity stores reference values for asset brands. Lookups from Customer Asset point to this entity.
+**FR-S15 — Machine Information on Opportunity**  
+The Opportunity form must include a Machine Info section with:
+- Type
+- Brand
+- Reference
+- Model
+- Specials (yes/no)
+- No follow-ups (separate field)
+- Add to Summary Competitor
 
-**FR-19 — Machine Model Management**  
-The `sit_MachineModel` entity stores reference values for asset models.
+**FR-S16 — Competitor Tracking**  
+Competitors field on Opportunity, populated with: None, Leica Geosystems, Unicontrole, CHC-NAV, Topcon, OEM, Others.
 
-**FR-20 — Machine Type Management**  
-The `sit_MachineType` entity stores reference values for asset types.
+**FR-S17 — Lost Reasons for Opportunities**  
+Status reasons for lost Opportunities: Competitor, Price, Solution fit, Timelines.
 
-**FR-21 — Asset Classification**  
-Each Customer Asset can be classified by brand, model, and type using the three reference lookups above.
+**FR-S18 — Status Reasons for Lost Quotes**  
+Separate status reason set for lost/expired Quotes (list to be defined).
 
-### 5.7 Service Bill of Materials
+**FR-S19 — Parent Order for Upselling**  
+A "Parent Order" field on the Order entity to track which orders originated from upsell actions, with a view showing orders that became parent to other orders.
 
-**FR-22 — Define Component Requirements for Installations**  
-The `sit_ServiceBillofMaterials` entity defines the expected parts/components for a given Customer Asset installation.
+### 5.6 Quote Management
 
-**FR-23 — Link BoM to Customer Asset**  
-Each Service BoM record links to a Customer Asset via the `sit_servicebillofmaterials_Installation_msdyn_customerasset` relationship.
+**FR-S20 — Products on Separate Tab**  
+The quote line grid is placed on a dedicated "Products" tab for readability when there are many lines.
 
-### 5.8 Service Item Components Entity
+**FR-S21 — Remove Shipping Information**  
+The Shipping information section is removed from the Quote form. Payment terms are inherited from the Account (from BC).
 
-**FR-24 — Track Component-Level Detail**  
-The `sit_ServiceItemComponents` entity stores individual component records with product and sub-asset references.
+**FR-S22 — Discount at Total Level Only**  
+Discount is applied at the order total level only — as an amount (e.g., €100) or as a percentage (e.g., 10%). No per-line percentage discount.
 
-**FR-25 — Link to Sub-Asset**  
-Each Service Item Component links to a Customer Asset sub-asset.
+**FR-S23 — No Write-In Products**  
+Write-in products are disabled. Sales can only select products/bundles from the synchronised price list.
 
-**FR-26 — Link to Product**  
-Each Service Item Component links to a product in the product catalogue.
+**FR-S24 — Trade-In Lines (Negative Quantity)**  
+Trade-in products are added to quotes/orders with a negative quantity (e.g., -1 × trade-in item = -€500). CE renders the amount in parentheses. BC behaviour with negative lines must be tested before go-live.
+
+**FR-S25 — Word Template / Create PDF Button**  
+A Word template for quotation output and a "Create PDF" button must be available on the Quote form.
+
+**FR-S26 — Trimble Products Without Write-In**  
+Trimble third-party products (handled by Arie) must be accommodatable without enabling write-in. Proposed solution: generic product with editable description and price; BoM loaded via Excel upload in Assembly. This approach to be confirmed.
+
+### 5.7 Product Structure
+
+**FR-S27 — Two-Layer Product Structure**  
+Products in CE follow the BoM structure from BC:
+
+| Layer | CE Type | Description | Price |
+|-------|---------|-------------|-------|
+| Layer 1 | Bundle (EWV product) | Main article / installation level; visible to customer on quote | €0 (sum of SBUs) |
+| Layer 2 | Product (SBU) | Sub-components, each with rounded price | Rounded (BC calculation) |
+
+**FR-S28 — Optional vs. Required Products in Bundles**  
+Products in bundles must be classified as:
+- **Required**: zero-price, cannot be removed by sales agent.
+- **Optional**: price visible, can be removed.
+
+A custom field `required/optional` must be added. Synchronisation of this flag from BC BoM needs to be verified.
+
+**FR-S29 — Product Filtering by Item Category**  
+Products visible to Sales agents are filtered by BC Item Category Code = 'Sales'.
+
+### 5.8 Pricing
+
+**FR-S30 — Price Lists**  
+Three price lists to be maintained in BC and synced to CE:
+1. Standard customer price list.
+2. OEM gross price list.
+3. OEM net price list.
+
+> **Decision required (B3)**: Whether OEM price lists are synchronised to CE or only used in BC.
+
+**FR-S31 — Discount Group on Account**  
+The discount group value (e.g., "15%") is synchronised from BC to the Account as read-only.
+
+### 5.9 Order Management
+
+**FR-S32 — Order to BC (Real-Time)**  
+On quote acceptance, an Order is created in CE and pushed to BC in real time.
+
+**FR-S33 — Order Status: Submitted / Read-Only**  
+Once an Order is synchronised to BC, it receives status "Submitted" and becomes read-only in CE.
+
+**FR-S34 — Lock Order for Operations**  
+A mechanism to "lock" a Sales Order for the operations/bedrijfsbureau department. Tested as feasible; internal Sitech decision on use is pending.
+
+**FR-S35 — Multiple Installations on One Order**  
+The ability to include 2+ installations on a single Sales Order. Feasibility in BC confirmed; CE behaviour must be verified.
+
+### 5.10 Invoice Management
+
+**FR-S36 — Invoice Visibility in CE**  
+Invoices are created in BC and synchronised as read-only records to CE. Visible on the Account (Invoices tab) and on the Order.
+
+**FR-S37 — Pre-Invoicing for Installations**  
+Installations are invoiced at a fixed price upon delivery. The order may not yet be complete (material returns, hour adjustments). Pre-invoicing must be supported; the final booking in BC follows later.
+
+### 5.11 Customer Contracts / Subscriptions
+
+**FR-S38 — Subscriptions Sync to CE (Read-Only)**  
+A custom **Subscriptions** table is created in Dataverse. Records are created in BC and synced read-only to CE. Visible on the Account (Customer Contracts/Subscriptions tab). Fields to be confirmed with René (action V-04).
+
+**FR-S39 — VRS Subscription Placement**  
+VRS subscriptions sold per installation must be linked to the **main location** (Account), not automatically placed under the installation (Service Item). The current automatic linking to the installation via Service Item is undesired.
+
+> **Open question**: Can VRS subscriptions be sold stand-alone only? Invoice to branch vs. head office?
+
+### 5.12 SharePoint Integration
+
+**FR-S40 — Auto-Create Customer Folder**  
+When an Account is created in CE, a SharePoint folder is automatically created (Power Automate flow). Folder name = Account name.
+
+**FR-S41 — Auto-Rename Folder**  
+When the Account name changes in CE, the SharePoint folder name is updated automatically.
+
+**FR-S42 — Documents Tab on Account and Quote**  
+A Documents tab is added to Account and Quote forms, providing direct access to the SharePoint folder. The Quotes tab links to the Offertes subfolder within the customer folder.
+
+**FR-S43 — Service Item SharePoint Folders**  
+When a Service Item is created, a SharePoint subfolder is automatically created using the naming convention:  
+`<YYYYMMDD> - <Customer> - <Assembly Order Number> - <Installation Name>`  
+Example: `20260227 - Dura Vermeer - A00018 - CAT 330-340 LRE Generic - Trimble Earthworks`
+
+**FR-S44 — Service Order Subfolder**  
+When a Service Order is created, a subfolder is created within the Service Item folder, named with the Service Order date. Photos are stored here.
+
+### 5.13 Module Navigation
+
+The following items are removed from the Sales module navigation:
+
+| Item | Reason |
+|------|--------|
+| Multisession | Relevant only for Customer Service |
+| Sales Accelerator | Not in use; complexity without benefit |
+| AI Research Agent | Not stable; may be reconsidered later |
+| Competitors | Not in use (handled via Opportunity field) |
+| Goals / Performance | Forecasting via Power BI only |
+| Marketing module | Decision open (Dieuwertje) |
+
+### 5.14 Dashboards
+
+**FR-S45 — Personal Dashboard**  
+- My open Opportunities (filtered by owner)
+- My open Quotes
+- My open activities (tasks, appointments, phone calls) this week
+
+**FR-S46 — Team Dashboard**  
+- Open Opportunities per sales person
+- Active Quotes and Orders (overview)
+- Overdue activities per user
+
+**FR-S47 — Account Activity Metrics**  
+Red-flag metrics to be surfaced (via Power BI or CE dashboards):
+- Days since last order (30/60/90 day flags)
+- Frequency of orders
+- Revenue per customer / segment
+- Average order value
+- Competitors per company
+- Red flags (no calls/emails for X days)
 
 ---
 
-## 6. Data Model
+## 6. Support / Customer Service Module — Functional Requirements
 
-### 6.1 Entity Summary
+### 6.1 Asset Linkage on a Case
 
-| Entity | Type | Purpose |
-|--------|------|---------|
-| `incident` | Standard (extended) | Service case |
-| `msdyn_customerasset` | Standard (extended) | Customer machine/asset |
-| `sit_CaseProductLine` | Custom | Products required per case |
-| `sit_MachineBrand` | Custom | Reference — brand |
-| `sit_MachineModel` | Custom | Reference — model |
-| `sit_MachineType` | Custom | Reference — type |
-| `sit_ServiceBillofMaterials` | Custom | Installation BoM |
-| `sit_ServiceItemComponents` | Custom | Component-level parts list |
+**FR-C01 — Link Asset to Case**  
+When creating or updating a Case, the agent **must** select a Customer Asset (`sit_asset`). Required.
 
-### 6.2 Key Fields on Incident (Case)
+**FR-C02 — Link Sub-Asset to Case**  
+The agent may optionally select a Sub-Asset (`sit_subasset`), filtered to child assets of the selected asset.
 
-| Field | Schema Name | Type | Required | Notes |
-|-------|-------------|------|----------|-------|
-| Asset | `sit_asset` | Lookup → msdyn_customerasset | Yes | |
-| Sub-Asset | `sit_subasset` | Lookup → msdyn_customerasset | No | Filtered by asset |
-| Total Time | `sit_totaltime` | Integer (minutes) | Recommended | AI fill disabled |
+**FR-C03 — Asset & Installation Info Display**  
+Contextual installation information based on the selected asset is displayed inline on the Case form.
 
-### 6.3 sit_CaseProductLine Fields
+### 6.2 Case Lifecycle
+
+**FR-C04 — Case Status Reasons**  
+The following status model applies:
+
+| Active | Resolved | Cancelled |
+|--------|----------|-----------|
+| In Progress | Problem Solved | Cancelled |
+| On Hold | Information Provided | Merged |
+| Waiting for Details | | |
+| Researching | | |
+
+Status reasons must also indicate how the case was closed: via Sales, Service Inside, or Field.
+
+**FR-C05 — Short vs. Normal Case Registration**  
+- **Short contact**: Registered via Contact → Timeline → Phone call activity. No case record created.
+- **Normal case**: Contact → Related Cases → Quick Create form → Case record.
+
+Not every interaction becomes a case.
+
+**FR-C06 — Merge / Similar / Parent-Child Cases**  
+Decision required on whether to enable: Merge cases, Similar Cases, and Parent-Child case functionality. If not needed, these are excluded from the UX and business logic.
+
+### 6.3 Total Time Tracking
+
+**FR-C07 — Record Support Duration**  
+Agents record total time spent in `sit_totaltime` (integer, minutes). AI form-fill is disabled for this field; manual entry only.
+
+### 6.4 Case Product Lines
+
+**FR-C08 — Add Products to Case**  
+Agents create Case Product Line records (product + quantity) linked to the case. Used for CE→BC product fulfilment.
+
+**FR-C09 — Product Lines Sub-Grid**  
+A sub-grid on the Case form lists all Case Product Lines with inline add/edit.
+
+### 6.5 Customer Asset Exploded View (Canvas App 1)
+
+**FR-C10 — Search by Serial / Part Number**  
+Agent searches by serial number or part number; app returns matching Customer Assets.
+
+**FR-C11 — Browse Service BoM**  
+For a selected asset, displays the Service Bill of Materials gallery.
+
+**FR-C12 — Browse Service Item Components**  
+For a selected asset, displays components (Product ID, Name, Serial Number, Quantity).
+
+**FR-C13 — Expand Installation**  
+Agent expands an installation to reveal sub-components.
+
+**FR-C14 — Create Case from Asset Context**  
+Agent initiates case creation pre-populated with the selected asset.
+
+### 6.6 Service Item Components App (Canvas App 2)
+
+**FR-C15 — Browse Customer Assets**  
+Agent navigates to a customer asset via lookup.
+
+**FR-C16 — Staged Product List**  
+Agent selects service item components and adds them to a staging list before committing as Case Product Lines.
+
+### 6.7 Service Items (Customer Assets)
+
+**FR-C17 — Two Service Item Form Types**  
+- **Sales form**: Installation level only (first layer); used by Sales.
+- **Service form**: Full view including sub-layers; used by Customer Service / Field Service.
+
+The Sales form is shown on the Account tab in the Sales module.
+
+**FR-C18 — Asset Classification**  
+Each Customer Asset is classifiable by Machine Brand, Machine Model, and Machine Type (reference entities).
+
+**FR-C19 — Service Item Types**  
+Two types: Installation (top-level) and underlying Service Items. Decision required on whether all serialised items become Service Items or only installations.
+
+**FR-C20 — Machine Driver (Asset ↔ Contact)**  
+A mechanism to associate a Contact (machine operator/driver) with a specific asset. The unique number concept for machine drivers needs to be defined.
+
+### 6.8 Queues and Routing
+
+**FR-C21 — Shared Mailbox Queue**  
+Cases arriving via the shared support email address are routed through a queue. *(Note: this reverses an earlier decision of "do not use queues" from Nov 2025.)*
+
+### 6.9 Knowledge Base
+
+**FR-C22 — Knowledge Articles**  
+A knowledge base is maintained in CE, linked to cases. AI suggests relevant articles when closing a case. Knowledge articles are accessible from the Sales module as well.
+
+### 6.10 Credits and Entitlements
+
+**FR-C23 — Entitlements**  
+Entitlements are 1-year time-limited contracts that restrict the number of cases a customer can open and control whether a new case may be created. Can be scoped at Account and/or Asset level.
+
+**FR-C24 — Credits**  
+Credits are a pool of support hours at the customer level (e.g., 20 hours). They are consumed only after a free threshold is exceeded. "Covered under warranty" until hours > allowance.
+
+> **Critical open decision**: Credit balance by Account or by Installation? How to invoice for negative credit balance?
+
+### 6.11 SLAs
+
+**FR-C25 — SLA Decision**  
+Decision required: will D365 SLA functionality be used? If yes, define SLA levels and targets.
+
+### 6.12 Case-to-Service Order
+
+**FR-C26 — Convert Case to Service Order in BC**  
+From a resolved case, a Service Order is created in BC. Three types: SE (Service), SI (Internal Service), SD (Service Delivery). The Work Order route in BC is explicitly excluded (confirmed 26-05-2026).
+
+> **Open question**: Can one case be converted to a Service Order more than once?  
+> **Open question**: Should BC create final case activities after a Sales Order or Service Order is completed?
+
+---
+
+## 7. Integration Catalogue
+
+| ID | Type | Data | Direction | Priority |
+|----|------|------|-----------|----------|
+| IF-01 | BC ↔ CE | Accounts (Customers) | BC → CE | Must have |
+| IF-02 | BC ↔ CE | Contacts | BC → CE | Must have |
+| IF-03 | BC ↔ CE | Products / BoM (EWV + SBU) | BC → CE | Must have |
+| IF-04 | BC ↔ CE | Price lists with SBU numbers | BC → CE | Must have |
+| IF-05 | BC ↔ CE | Payment terms (on Account) | BC → CE (read-only) | Must have |
+| IF-06 | BC ↔ CE | Discount groups (on Account) | BC → CE (read-only) | Must have |
+| IF-07 | BC ↔ CE | Parent-child account relationship | BC → CE | Must have |
+| IF-08 | CE → BC | Sales Order | CE → BC (real-time) | Must have |
+| IF-09 | BC ↔ CE | Invoices | BC → CE (read-only) | Must have |
+| IF-10 | BC ↔ CE | Country table | BC → CE | Must have |
+| IF-11 | BC ↔ CE | Customer Contracts / Subscriptions | BC → CE (read-only) | Wish |
+| IF-12 | CE ↔ SharePoint | Documents per customer | Bidirectional | Must have |
+| IF-13 | CE ↔ Outlook | Email tracking | Standard / Unified Interface | Must have |
+
+### 7.1 Known Integration Risks
+
+- **Discount mapping**: CE applies total-level discounts; BC works with line/invoice percentages. The mapping in the CE→BC sync must be verified technically.
+- **Trade-in (negative lines)**: BC behaviour with negative order lines must be tested before go-live.
+- **Unapproved customer order submission**: Error handling when an Order is submitted to BC for a customer not yet approved. Must produce a clear error message.
+- **Subscription-from-BoM**: When a Subscription (SIM/Software) is a BoM component, CE cannot automatically link it. Workaround required.
+- **SD-order without synced products**: An SD-type Service Order from Support currently has no value without product synchronisation. Blocking issue requiring resolution.
+- **SharePoint reconnection on name change**: When an Account name is changed, the SharePoint folder mapping can break. Manual re-linking procedure to be documented.
+- **Existing Service Items migration**: When importing legacy Service Items from the old CE, SharePoint links are lost. A Power Automate migration flow to rename folders to the new naming convention is required.
+
+---
+
+## 8. Data Model
+
+### 8.1 Custom Entities (Support UX)
+
+| Entity | Purpose |
+|--------|---------|
+| `sit_CaseProductLine` | Products required per case |
+| `sit_MachineBrand` | Reference — brand |
+| `sit_MachineModel` | Reference — model |
+| `sit_MachineType` | Reference — type |
+| `sit_ServiceBillofMaterials` | Installation BoM |
+| `sit_ServiceItemComponents` | Component-level parts list |
+
+### 8.2 Custom Entities (Sales)
+
+| Entity | Purpose |
+|--------|---------|
+| `Country` (custom) | Country reference; synced from BC; used in address lookups |
+| `Subscriptions` (custom) | Customer contracts/subscriptions; read-only from BC |
+
+### 8.3 Key Fields on Incident (Case)
 
 | Field | Schema Name | Type | Required |
 |-------|-------------|------|----------|
-| Name | `sit_name` | Text (850) | Yes |
-| Case | `sit_case` | Lookup → incident | Yes |
-| Product | `sit_product` | Lookup → product | Yes |
-| Quantity | `sit_quantity` | Integer | Yes |
+| Asset | `sit_asset` | Lookup → msdyn_customerasset | Yes |
+| Sub-Asset | `sit_subasset` | Lookup → msdyn_customerasset | No |
+| Total Time | `sit_totaltime` | Integer (minutes) | Recommended |
 
-### 6.4 Relationship Diagram (Logical)
+### 8.4 Relationship Diagram
 
 ```
-incident (Case)
- ├── sit_asset ──────────────────► msdyn_customerasset
- │                                    ├── sit_machinebrand ──► sit_MachineBrand
- │                                    ├── sit_machinemodel ──► sit_MachineModel
- │                                    ├── sit_machinetype  ──► sit_MachineType
- │                                    └── Parent/Child (self-referencing)
- ├── sit_subasset ───────────────► msdyn_customerasset (child)
- └── sit_CaseProductLine (1:N)
-      ├── sit_case ──────────────► incident
-      └── sit_product ───────────► product
+BC (source of truth)
+  ├── Accounts ──────────────────────────────► CE Account
+  │     ├── Payment terms (read-only)
+  │     ├── Discount group (read-only)
+  │     └── Parent-child
+  ├── Products / BoM (EWV+SBU) ─────────────► CE Product Catalogue
+  ├── Price Lists ────────────────────────────► CE Price Lists
+  ├── Sales Order ◄──────────────────────────── CE Order (real-time push)
+  ├── Invoices ──────────────────────────────► CE Invoice (read-only)
+  └── Subscriptions ─────────────────────────► CE Subscriptions (read-only)
 
-sit_ServiceBillofMaterials
- └── Installation ──────────────► msdyn_customerasset
+CE Account
+  ├── Opportunities (1:N)
+  ├── Quotes (1:N)
+  ├── Orders (1:N)
+  ├── Invoices (read-only)
+  ├── Cases (Customer Service)
+  ├── Service Items (msdyn_customerasset)
+  │     ├── sit_machinebrand ──► sit_MachineBrand
+  │     ├── sit_machinemodel ──► sit_MachineModel
+  │     ├── sit_machinetype  ──► sit_MachineType
+  │     └── Parent/Child (self-ref)
+  ├── Documents (SharePoint)
+  └── Subscriptions (read-only)
 
-sit_ServiceItemComponents
- ├── CustomerAssetSubAsset ─────► msdyn_customerasset
- └── Product ────────────────────► product
+Incident (Case)
+  ├── sit_asset ──────────────────────────────► msdyn_customerasset
+  ├── sit_subasset ───────────────────────────► msdyn_customerasset (child)
+  └── sit_CaseProductLine (1:N)
+        ├── sit_case ─────────────────────────► incident
+        └── sit_product ──────────────────────► product
 ```
 
 ---
 
-## 7. User Interface
+## 9. Security and Roles
 
-### 7.1 Case Forms
+### 9.1 Approach
 
-Seven form variants are customised for different agent contexts:
+- Start from "all-off" permission set (all rights zeroed).
+- Assign exactly the required permissions per role.
+- Based on the 100-series permission templates prepared by Maud.
+- Axelio configures; René can adjust forms afterwards.
+- User personalisation is **disabled** so all users with the same role see the same screen.
 
-| Form Name | Context |
-|-----------|---------|
-| Enhanced Quick Case Form | Rapid case entry |
-| Enhanced Full Case Form | Full details |
-| Case for Interactive Experience | Modern single-session UI |
-| Case for Multisession Experience | Agent working multiple cases |
-| Case for Swarming | Collaborative resolution |
-| Case for Meeting Side Panel | Case opened alongside a Teams meeting |
-| Information Form | Read-only view |
+### 9.2 Sales Roles
 
-All forms include: Asset lookup, Sub-Asset lookup, Installation Info display, Total Time field, and Case Product Lines sub-grid.
+| Role | Description | Notes |
+|------|-------------|-------|
+| Account Manager | Full access to Sales module; create/edit Leads, Opportunities, Quotes, Orders. | No access to financial settings. Cannot create Customers (only Prospects). |
+| Sales Manager | Same as Account Manager + team dashboards and reports + customer approval. | No CRM admin rights. |
+| Director | Same as Sales Manager, read-only at team level. | To be confirmed separately. |
+| Sales Admin (Axelio) | Full management of Sales module. | Temporary during implementation. |
 
-### 7.2 Canvas App 1 — Customer Assets Exploded View
+Based on Microsoft standard roles:
+- Sales Manager → **Sales Professional Manager**
+- Account Manager → **Sales Professional Person**
 
-**Entry point**: Navigate to the app from the Customer Service Hub or via direct link.
+Custom entity permissions:
 
-**Key screens and controls**:
+| Entity | Create | Read | Update | Delete |
+|--------|--------|------|--------|--------|
+| Country | — | ✓ | — | — |
+| Subscriptions | — | ✓ | — | — |
+| Service Items | — | ✓ | — | — |
 
-| Control | Purpose |
-|---------|---------|
-| `txtLookUpSNPN` | Serial number / part number search input |
-| `galServiceBoMsList` | Gallery — Service Bill of Materials |
-| `galServiceItemComponentsList` | Gallery — Service Item Components |
-| `icArrowInstall` | Expand installation to show sub-components |
-| `icCreateCase` | Launch case creation with asset context |
+### 9.3 Support / Customer Service Roles
 
-### 7.3 Canvas App 2 — Service Item Components
-
-**Entry point**: Navigate to the app from a Customer Asset or Case context.
-
-**Key screens and controls**:
-
-| Control | Purpose |
-|---------|---------|
-| `conAssetLookUp` | Customer asset selector |
-| `galServiceItems` | Gallery — service items for selected asset |
-| `lblProductID / lblProductName / lblSerialNumber / lblQty` | Component detail labels |
-| `btnAddToProductList` | Add selected items to staging list |
-| `galNewProductsList` | Staging gallery for products before commit |
+Custom security roles for the Support module are **not yet defined** in the delivered solution package. Roles needed for: Case Product Lines, Service BoM, Service Item Components, Machine reference data.
 
 ---
 
-## 8. Integration Points
-
-| Integration | Direction | Mechanism | Status |
-|-------------|-----------|-----------|--------|
-| CE-BC (Back-end ERP) | Outbound | External (not in this solution) | Interface defined via `sit_CaseProductLine` |
-| Product Catalogue | Internal | Dataverse lookup | In scope |
-| Customer Asset | Internal | Dataverse lookup | In scope |
-| Dynamics 365 Sales (Opportunity / Quote) | Internal | Lookups from MachineBrand/Model/Type | In scope |
-| IoT Connector | Dependency | msdyn IoT Alerts | Platform dependency |
-| Omnichannel | Dependency | Routing & multi-session forms | Platform dependency |
-
----
-
-## 9. Non-Functional Requirements
+## 10. Non-Functional Requirements
 
 | Category | Requirement |
 |----------|-------------|
-| Platform | Microsoft Dynamics 365 Customer Service, CRM 9.2.26051.150+ |
-| Deployment | Unmanaged solution import; target environment must have all listed dependencies |
-| Security | Inherits Dynamics 365 role-based access control; no custom security roles defined in this solution |
-| Performance | Standard Dataverse SLAs apply; no custom indexing defined |
-| Availability | Inherits Dynamics 365 cloud SLA (99.9%) |
-| Localisation | No custom language resources defined; English default |
-| AI | AI form-fill opt-out applied to `sit_totaltime`; all other AI capabilities enabled by platform default |
+| Platform | Microsoft Dynamics 365 CE, CRM 9.2.26051.150+; Business Central |
+| Language | English (no field translations) |
+| Deployment | Unmanaged solution import; all listed platform dependencies must be pre-installed |
+| Performance | Standard Dataverse SLAs; no custom indexing defined |
+| Availability | 99.9% (Microsoft Cloud SLA) |
+| Localisation | No custom language resources; English default |
+| Personalisation | Central user personalisation disabled; all users with same role see same UI |
+| AI | AI form-fill opt-out applied to `sit_totaltime`; other AI features enabled by default |
 
 ---
 
-## 10. Dependencies
+## 11. Solution Architecture
 
-The following managed solution packages must be installed in the target environment before importing SitechSupportUX:
+- **Sales Hub** and **Customer Service / Field Service Hub** are separate apps (not merged into one).
+- A **base solution** for shared tables may be used; separate solutions per app (to be confirmed).
+- Solution package `SitechSupportUX v1.0.0.2` delivered as unmanaged Dynamics 365 solution.
 
-| Package | Minimum Version | Purpose |
-|---------|----------------|---------|
-| msdynce_Service | 9.0.5.56 | Core case management |
-| msdyn_AssetCommon | 1.0.50.1 | Customer Asset entity |
-| msdyn_CaseManagementIntelligence | 9.2.26044.1067 | AI agent features |
-| msdyn_CSIntelligence | 9.2.26044.1067 | Case suggestions |
-| msdynce_Sales | 9.0.4.0076 | Opportunity / Quote integration |
-| msdynce_ProductManagement | 9.0.25113.10001 | Product catalogue |
-| IoTConnector | 1.8.53.0 | IoT alert integration |
-| msdyn_ModernCaseManagement | 9.0.26042.2021 | Modern case features |
-| OmnichannelBase | 1.10.0.146 | Omnichannel routing |
+### 11.1 Platform Dependencies (SitechSupportUX)
+
+| Package | Min. Version |
+|---------|-------------|
+| msdynce_Service | 9.0.5.56 |
+| msdyn_AssetCommon | 1.0.50.1 |
+| msdyn_CaseManagementIntelligence | 9.2.26044.1067 |
+| msdyn_CSIntelligence | 9.2.26044.1067 |
+| msdynce_Sales | 9.0.4.0076 |
+| msdynce_ProductManagement | 9.0.25113.10001 |
+| IoTConnector | 1.8.53.0 |
+| msdyn_ModernCaseManagement | 9.0.26042.2021 |
+| OmnichannelBase | 1.10.0.146 |
 
 ---
 
-## 11. Glossary
+## 12. Open Decisions Register
+
+| # | Question | Owner | Deadline |
+|---|----------|-------|----------|
+| V-01 | When is a Lead created vs. direct Opportunity or Activity? | René / Sitech | Before configuration |
+| V-02 | Which BC payment terms fields are needed on Account in CE? | Marijke + René | Before integration |
+| V-03 | Blocked customer: deactivate in CE? Who may do this? | René / Boris | Before go-live |
+| V-04 | Which fields of Customer Contracts/Subscriptions go to CE? | Marijke + René | Before integration |
+| V-05 | Goals in CE: yes/no? Who manages targets? | René / Sitech | To be planned |
+| V-06 | Sales Literature: activate? | René / Sitech | To be planned |
+| V-07 | Marketing module: activate? | René / Dieuwertje | To be planned |
+| V-08 | Which fields visible per tab (Service Items, Subscriptions) for Sales? | René | Before configuration |
+| V-09 | Does BC store invoice PDFs in SharePoint? | Marijke (Jan Jaap) | Short term |
+| V-10 | Merge/Similar/Parent-Child cases: use or exclude? | René / Support team | Before Support config |
+| V-11 | SLA: use or not? Define levels? | René / Support team | Before Support config |
+| V-12 | Credits: by Account or by Installation? How to invoice for negative balance? | René / Finance | Before Support config |
+| V-13 | OEM price lists: synchronise to CE or BC-only? | René / Jan Jaap | Before integration |
+| V-14 | Short vs. Normal cases: confirm registration approach | René / Support team | Before Support config |
+| V-15 | Directorrol permissions: confirm exact scope | René | Before go-live |
+
+---
+
+## 13. Glossary
 
 | Term | Definition |
 |------|-----------|
-| Asset | A physical machine or equipment registered as a Customer Asset in Dynamics 365. |
-| Sub-Asset | A component or module installed on or within a parent asset. |
-| BoM | Bill of Materials — list of parts/components required for a service or installation. |
-| Case Product Line | A record capturing a single product (and quantity) required to resolve a case. |
-| CE-BC | Customer Engagement to Business Central — integration between Dynamics 365 and the ERP back-end. |
-| Canvas App | A Power Apps application with a custom-designed UI, as opposed to a model-driven form. |
-| Exploded View | A hierarchical display of an asset's components, similar to an engineering exploded diagram. |
+| Asset / Service Item | A physical machine or equipment registered in CE. |
+| Sub-Asset | A component installed on or within a parent asset. |
+| BoM | Bill of Materials — parts/components list. |
+| Bundle (EWV) | D365 product bundle representing an installation at Layer 1 (€0 price). |
+| SBU | Sub-unit; an individual product/component in Layer 2 of the BoM. |
+| Case Product Line | A record capturing a product + quantity required to resolve a case. |
+| CE | Customer Engagement (Dynamics 365). |
+| BC | Business Central (ERP). |
+| CE-BC | Integration between Dynamics 365 CE and BC. |
+| Canvas App | A Power Apps custom-UI application. |
+| Exploded View | Hierarchical display of asset components. |
+| VRS | Virtual Reference Station — a subscription-based positioning service. |
+| EWV | Equivalent of the main installation product (bundle level). |
+| SD / SE / SI | Service Delivery / Service External / Service Internal order types in BC. |
 
 ---
 
-*End of Functional Specification*
+*End of Functional Specification — v1.1*  
+*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)*
