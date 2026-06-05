@@ -175,8 +175,4 @@ Search for `<form>` within entity definitions to inspect form layouts.
 
 ---
 
----
-
-`Power Automate` `Dataverse` `FetchXML` `D365 CE` `Canvas Apps` `SharePoint` `Business Central` `Power Platform ALM` `Docupack` `BSA`
-
 *Solution versions analysed: SitechSupportData 1.0.0.2 · SitechSupportUX 1.0.0.3 · SitechUX 1.0.0.1 · June 2026*
