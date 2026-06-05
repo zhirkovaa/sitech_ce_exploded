@@ -4,7 +4,7 @@
 **Author role**: Business System Analyst  
 **Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Axelio FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)  
 **Date**: 2026-06-05  
-**Version**: 1.3
+**Version**: 1.4
 
 ---
 
@@ -637,6 +637,73 @@ The confirmation flow has two Product GUIDs hardcoded in a condition to **suppre
 
 ---
 
+### GAP-X13 — Dead-Code Branch in Certificate Flow (`AND` Instead of `OR`) `[BUG]`
+**Impact**: H | **Effort**: L
+
+In the "TRA_WF_Send sertificates" flow, the inner condition `Condition_1` that routes participants to the "Basis Machinisten Training" email branch uses an `AND` operator between two different Product IDs:
+
+```
+productid == "ac4df9ab-0a7a-ec11-8d21-000d3aafc422"
+AND
+productid == "0df04679-adbc-ec11-983f-6045bd8f9077"
+```
+
+A single product record can never simultaneously have two different `productid` values. This condition **always evaluates to false**. The "Basis Machinisten Training" email and LinkedIn link are never sent.
+
+**Consequence**: All participants who are NOT in the Uitgebreide Machinisten Training stream receive the "Basis Beheerders Training" certificate — regardless of whether they attended Basis Machinisten Training or Beheerders Training. Participants may receive an incorrect certificate type.
+
+**Fix required**: Change the `AND` to `OR` in `Condition_1`. This is a one-minute change in Power Automate but requires careful testing to confirm the Product GUIDs are still valid and map to the correct training types.
+
+---
+
+### GAP-X14 — Docupack Connector Dependency Not Documented or Governed `[RISK]`
+**Impact**: M | **Effort**: L
+
+The certificate flow depends on the **Docupack** Power Platform connector (`shared_documentscorepackapi`) — a third-party paid connector that generates Word/PDF documents from templates. This dependency is:
+- Not mentioned in any FDD or solution overview.
+- Subject to Docupack licensing and service availability.
+- Tied to a specific Word template GUID (`2d3c2103-415a-ef11-bfe3-000d3a3aa936`) that is hardcoded across all three email branches.
+
+**Risks**:
+- If the Docupack connector licence lapses, certificate generation fails silently.
+- The template GUID is hardcoded — if the template is deleted and recreated, all three flow branches must be updated.
+- The same template is used for all training types; if different certificate layouts are ever needed per type, the flow must be redesigned.
+
+**Action required**: Document the Docupack licence, template file name, and renewal owner. Replace hardcoded template GUIDs with environment variables or configurable values.
+
+---
+
+### GAP-X15 — `sit_sertificatesent` vs `sit_certificatesant` Field Name Inconsistency `[BUG]`
+**Impact**: M | **Effort**: L
+
+The solution schema (`SitechUX v1.0.0.1`) defines the certificate sent flag as **`sit_certificatesant`** (note: "sant" — likely a typo for "sent"). The "TRA_WF_Send sertificates" flow sets **`sit_sertificatesent`** (note: "sertificate" — also a typo).
+
+These appear to be the same logical field accessed under two different names, which suggests either:
+1. There are **two separate boolean fields** on `sit_ContactTraining` (one from the schema, one created later), or
+2. The schema name is `sit_sertificatesent` and the solution XML shows it under the alias `sit_certificatesant`.
+
+**Consequence**: If these are two different fields, the form displays one (`sit_certificatesant`) while the flow populates the other (`sit_sertificatesent`) — agents would see "certificate not sent" even after it was dispatched.
+
+**Action required**: Verify in the live environment which field column name the flow actually updates. Correct the typos in both the schema name and the flow label in a future solution update.
+
+---
+
+### GAP-X16 — `sit_serviceagreementid` on Training Session — Undocumented Field
+**Impact**: L | **Effort**: L
+
+The certificate flow's FetchXML query retrieves `sit_serviceagreementid` from `sit_trainingsession` as part of its data pull. This field does not appear in the schema documentation from the solution XML analysis.
+
+This suggests either:
+- The field exists in the live environment but was not exported as part of the `SitechUX v1.0.0.1` solution (added manually after deployment), or
+- It is fetched speculatively but never used in the flow actions (the flow does not reference it after retrieval).
+
+**Questions**:
+- What is the business meaning of linking a Service Agreement to a Training Session?
+- Is this field live in the environment or just referenced in the FetchXML by mistake?
+- Should this be added to the formal `sit_TrainingSession` entity schema?
+
+---
+
 ## SECTION 5 — Testing, Quality, and Documentation Gaps
 
 ### GAP-Q01 — No Test Plan or Acceptance Criteria `[BLOCKER]`
@@ -729,6 +796,7 @@ No end-user training material is included for Sales agents (quote creation, prod
 | **GAP-X09** | **sit_trainingsessiontime field name mismatch — time blank in all emails** | **Academy** |
 | **GAP-X11** | **"Copy of -" training flow is duplicate — may double-fire reminders** | **Academy** |
 | **GAP-X12** | **Hardcoded product GUIDs in flow — silently breaks on environment copy** | **Academy** |
+| **GAP-X13** | **AND instead of OR in certificate flow — Basis Machinisten branch is dead code** | **Academy** |
 
 ### Low / Medium Impact
 
@@ -740,8 +808,11 @@ No end-user training material is included for Sales agents (quote creation, prod
 | GAP-X06 | Machine Model is Brand×Type matrix — filter logic undesigned | Sales |
 | GAP-X07 | Component replacement flag has no workflow | Support |
 | GAP-X08 | Solution layering deployment order undocumented | Both |
+| GAP-X14 | Docupack connector dependency undocumented — licence and template governance missing | Academy |
+| GAP-X15 | sit_sertificatesent vs sit_certificatesant field name inconsistency — may be two separate fields | Academy |
+| GAP-X16 | sit_serviceagreementid on TrainingSession — fetched but undocumented | Academy |
 
 ---
 
-*End of Gap & Risk Register — v1.3*  
-*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions (Training Confirmation + Upcoming Sessions, 2026-06-05)*
+*End of Gap & Risk Register — v1.4*  
+*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions (Training Confirmation flow, Certificate Dispatch flow, 2026-06-05)*

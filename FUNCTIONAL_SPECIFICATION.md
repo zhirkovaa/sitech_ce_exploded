@@ -7,7 +7,7 @@
 **Functional owner (Sitech)**: René van der Linden  
 **Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
 **Date**: 2026-06-05 (enriched with all source documents including managed solution packages)  
-**Version**: 1.3
+**Version**: 1.4
 
 ---
 
@@ -513,19 +513,35 @@ Manages SITECH Academy product training sessions and automates participant commu
 | `sit_recorded` | Boolean | No | Whether the session was recorded |
 | `sit_trainer` | Lookup → SystemUser | Recommended | Internal SITECH trainer |
 | `sit_training` | Lookup → Product | Recommended | Training product from the product catalogue |
+| `sit_serviceagreementid` | Lookup | No | Service Agreement linked to the session (fetched in certificate flow FetchXML but not used in email logic — purpose undocumented) |
 
 **`sit_ContactTraining`** — Junction: a Contact's registration at a Training Session:
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `sit_name` | Text | Yes | Record name |
-| `sit_contact` | Lookup (field: `_sit_contactid_value`) | Yes | Links to `Contact` entity — the registered participant. Relationship XML name `sit_contacttraining_Contact_contract` is misleading but field stores Contact IDs (confirmed by live flow logic). |
+| `sit_contact` | Lookup (field: `_sit_contactid_value`) | Yes | Links to `Contact` entity — confirmed by live flow logic. Relationship XML name `sit_contacttraining_Contact_contract` is misleading. |
 | `sit_trainingsession` | Lookup → sit_TrainingSession | No | Which session this registration is for |
-| `sit_certificatesant` | Boolean | No | Certificate sent flag |
-| `sit_confirmationsent` | Boolean | No | Confirmation email sent flag (set to `true` by automation) |
+| `sit_certificatesant` | Boolean | No | Schema name for certificate sent flag (note: `sit_sertificatesent` used in flow — see GAP-X15) |
+| `sit_confirmationsent` | Boolean | No | Confirmation email sent flag (set by Flow 1) |
 | `sit_remindersent` | Boolean | No | Reminder email sent flag |
 
-> **Note on `sit_contact`**: The relationship XML name `sit_contacttraining_Contact_contract` was flagged as a potential bug. However, the live Power Automate flow uses `triggerBody()?['_sit_contactid_value']` and reads from the `contacts` entity — confirming this field correctly stores Contact GUIDs. The XML relationship name is misleading but the data is correct. Verify in environment to rule out dual-registration between entity types.
+> **Note on `sit_contact`**: The live flows use `_sit_contactid_value` and read from `contacts` — field correctly stores Contact GUIDs. XML relationship name `sit_contacttraining_Contact_contract` is a misleading artefact only.
+
+### Known Training Product Types
+
+The certificate flow reveals the following training product classification used by automation logic:
+
+| Product GUID | Training Type | LinkedIn cert URL |
+|-------------|--------------|-------------------|
+| `a24d0469-2411-ef11-9f89-6045bd9aa08b` | Uitgebreide Machinisten Training | `earthworks-uitgebreide-machinisten-training` |
+| `96d1de15-2411-ef11-9f89-6045bd9aa08b` | Uitgebreide Machinisten Training (variant) | Same |
+| `ac4df9ab-0a7a-ec11-8d21-000d3aafc422` | Basis Machinisten Training ⚠️ dead code | `earthworks-gebruikerstraining` |
+| `0df04679-adbc-ec11-983f-6045bd8f9077` | Basis Machinisten Training ⚠️ dead code | Same |
+| `b24df9ab-0a7a-ec11-8d21-000d3aafc422` | Excluded from confirmation (internal?) | — |
+| `b4632176-8769-ed11-9561-6045bd895dae` | Excluded from confirmation (internal?) | — |
+
+> ⚠️ The Basis Machinisten Training branch in the certificate flow uses `AND` instead of `OR` in its condition, making it unreachable. See GAP-X13.
 
 ### Power Automate Automation
 
@@ -575,13 +591,61 @@ Manages SITECH Academy product training sessions and automates participant commu
 
 > ⚠️ These GUIDs are hardcoded in the flow condition. If the Product records are deleted and recreated, the GUIDs will change and the exclusion will silently stop working.
 
-#### Flow 2: "Copy of - Get upcoming training sessions"
+#### Flow 2: "TRA_WF_Send sertificates" (Certificate Dispatch)
+
+**Flow ID**: `97096d9c-9258-400f-adba-c29dc65ceba7`  
+**Created**: 2024-05-30 | **Last modified**: 2025-07-31 | **Status**: Active ✅  
+**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)  
+**Additional connector**: `shared_documentscorepackapi` (Docupack — PDF/Word document generation)
+
+**Trigger**: Daily recurrence at **09:50 W. Europe Standard Time**
+
+**Logic**:
+
+```
+1. Initialize targetDate = formatDateTime(addDays(utcNow(), -2), 'yyyy-MM-dd')
+   → certificates always go out 2 days after the training date
+2. Fetch "Academy newsletters" queue (FetchXML by name)
+3. List all active sit_contacttraining records where:
+     linked sit_trainingsession.sit_date = targetDate (exactly 2 days ago)
+4. For each participant record:
+     a. Get Training Session details
+     b. Get Trainer (systemusers)
+     c. Get Training Product (products)
+     d. Get Contact data (contacts)
+     e. OUTER CONDITION — IF product is Uitgebreide Machinisten Training
+          (productid == a24d0469 OR productid == 96d1de15):
+          → Send "Uitgebreide Machinisten Training" congratulations email
+          → Generate PDF certificate (Docupack template 2d3c2103)
+          → Attach PDF to email
+          → Send via Academy newsletters queue
+          → Set sit_sertificatesent = true
+        ELSE:
+          INNER CONDITION — IF product == ac4df9ab AND 0df04679  ⚠️ BUG: AND, always false
+          → [DEAD CODE] "Basis Machinisten Training" branch never executes
+          ELSE:
+          → Send "Basis Beheerders Training" congratulations email
+          → Generate PDF certificate (same Docupack template)
+          → Attach and send
+          → Set sit_sertificatesent = true
+```
+
+**Email content** (Dutch, all branches):
+- Subject: *"Gefeliciteerd met het afronden van je training!"*
+- Body: congratulations text, LinkedIn certification link (course-specific), contact details
+- Attachment: PDF certificate generated from Docupack Word template (`2d3c2103-415a-ef11-bfe3-000d3a3aa936`)
+- Signed: trainer full name + "SITECH Academy"
+
+**Certificate template**: Single hardcoded Docupack template GUID (`2d3c2103-415a-ef11-bfe3-000d3a3aa936`) used across all three product branches. The same template layout is used for all training types.
+
+**⚠️ Critical bug**: The `Condition_1` (Basis Machinisten Training branch) uses `AND` between two different product IDs — a logical impossibility. This branch **never executes**. All non-Uitgebreide-Machinisten participants receive the "Basis Beheerders Training" certificate regardless of their actual training type.
+
+#### Flow 3: "Copy of - Get upcoming training sessions"
 
 **Flow ID**: `5aba4c9d-4af9-481d-85fb-5eedefe0cb9c` (per manifest)  
-**Display name**: "Copy of - Get upcoming training sessions"  
 **Connection owner**: `alina.zhirkova@sitech-nederland.nl`
 
-> Full definition not yet analysed. The "Copy of -" prefix indicates this is a duplicated flow, not a canonical version. The original "Get upcoming training sessions" flow presumably queries `sit_trainingsessions` and sends reminder emails or a digest. **Requires analysis** — see GAP-X11.
+> Full definition not yet analysed. The "Copy of -" prefix indicates this is a duplicated flow. **Requires analysis** — see GAP-X11.
 
 ### Functional Requirements
 
@@ -592,19 +656,34 @@ A Training Session is a schedulable event linked to a training Product in the D3
 When a Contact Training record is created (participant registration), the automation flow immediately sends a confirmation email to the Contact in Dutch, unless the training product is excluded or the training date has already passed.
 
 **FR-TR03 — Training Product Catalogue**  
-Training offerings are modelled as Products in the D365 product catalogue. At least two product types exist that are excluded from automated confirmation (GUIDs must be documented and treated as configuration, not hardcoded logic).
+Training offerings are modelled as Products in the D365 product catalogue. Product GUIDs drive automation branching — this must be treated as configuration data, not hardcoded logic.
 
 **FR-TR04 — Confirmation Email via Queue**  
 Confirmation emails are sent from the "Academy newsletters" queue (shared mailbox), not from a personal account. The queue is resolved by name via FetchXML at runtime.
 
 **FR-TR05 — Academy Logo from SharePoint**  
-The email template includes the SITECH Academy logo, fetched at send-time from SharePoint (`GP-SITECHWerkvoorbereiding` site). Logo must remain at the defined path or the flow will fail.
+The confirmation email includes the SITECH Academy logo, fetched at send-time from SharePoint (`GP-SITECHWerkvoorbereiding` site). Logo must remain at the defined path or the flow will fail.
 
 **FR-TR06 — Confirmation Flag**  
 After a confirmation email is sent, `sit_confirmationsent` is set to `true` on the `sit_ContactTraining` record.
 
-**FR-TR07 — Upcoming Sessions (Reminder/Digest)**  
-A second flow ("Get upcoming training sessions") handles upcoming session notifications or reminders. Its exact logic requires analysis.
+**FR-TR07 — Certificate Dispatch (D+2)**  
+Two days after a training session date, a daily scheduled flow identifies all participants from that session and sends each a congratulations email with a PDF certificate (generated by Docupack from a Word template) attached. Certificate type is determined by the training Product GUID.
+
+**FR-TR08 — Certificate Sent Flag**  
+After the certificate email is sent, `sit_sertificatesent` is set to `true` on the `sit_ContactTraining` record.
+
+**FR-TR09 — Upcoming Sessions (Reminder/Digest)**  
+A third flow ("Get upcoming training sessions") handles upcoming session notifications or reminders. Its exact logic requires analysis (see GAP-X11).
+
+### External Dependencies (Training Module)
+
+| Dependency | Details | Risk |
+|------------|---------|------|
+| Docupack connector (`shared_documentscorepackapi`) | Generates PDF certificates from Word template | Third-party paid connector; template GUID hardcoded |
+| SharePoint (`GP-SITECHWerkvoorbereiding`) | Academy logo for confirmation emails | Logo path must not change |
+| "Academy newsletters" queue | All Academy emails sent from this queue | Queue resolved by name — renaming breaks flows |
+| `alina.zhirkova@sitech-nederland.nl` | Connection owner for all flows | Personal credential; confirmation flow suspended since 2026-03-03 |
 
 ---
 
