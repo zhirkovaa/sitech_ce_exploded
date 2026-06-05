@@ -4,7 +4,7 @@
 **Author role**: Business System Analyst  
 **Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Axelio FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)  
 **Date**: 2026-06-05  
-**Version**: 1.4
+**Version**: 1.5
 
 ---
 
@@ -602,17 +602,14 @@ Both Academy flows (`When Training Participants is added - send Confirmation` an
 
 ---
 
-### GAP-X11 — "Copy of - Get Upcoming Training Sessions" Flow Unanalysed `[DESIGN]`
-**Impact**: M | **Effort**: L
+### GAP-X11 — "Copy of -" Reminder Flow Is Active Production Flow (Re-evaluated)
+**Impact**: M | **Effort**: M
 
-The manifest for the exported package (`9c82e091-manifest.json`) shows a flow named **"Copy of - Get upcoming training sessions"** (`5aba4c9d-4af9-481d-85fb-5eedefe0cb9c`). The "Copy of -" prefix indicates this is a **duplicate** of an original flow, not a canonical production version.
+**Status update (2026-06-05)**: The flow "Copy of - Get upcoming training sessions" has been fully analysed. It is the **live reminder flow** — active, last modified 2026-06-04. It sends a "Herinnering" email to participants 4 days before their training.
 
-**Concerns**:
-- The original "Get upcoming training sessions" flow may have been deleted or may still exist in the environment.
-- If both original and copy are active simultaneously, reminders may fire twice.
-- The full definition of this flow has not been analysed — its trigger, schedule, and actions are unknown.
+The "Copy of -" prefix is cosmetic (it was cloned from an original during development). The original may have been deleted. The concern is no longer about double-firing, but about **three active bugs within this flow** — see GAP-X17, GAP-X18, and GAP-X19.
 
-**Action required**: Analyse the flow definition, determine whether the original still exists in the environment, deactivate any duplicate, and ensure only one canonical version runs.
+**Remaining action**: Rename the flow to remove the "Copy of -" prefix, and fix the three bugs below.
 
 ---
 
@@ -685,6 +682,66 @@ These appear to be the same logical field accessed under two different names, wh
 **Consequence**: If these are two different fields, the form displays one (`sit_certificatesant`) while the flow populates the other (`sit_sertificatesent`) — agents would see "certificate not sent" even after it was dispatched.
 
 **Action required**: Verify in the live environment which field column name the flow actually updates. Correct the typos in both the schema name and the flow label in a future solution update.
+
+---
+
+### GAP-X17 — Reminder Flow Fires Daily, No Deduplication Guard `[BUG]`
+**Impact**: H | **Effort**: L
+
+The reminder flow ("Copy of - Get upcoming training sessions") lists `sit_contacttraining` records where the training date is exactly 4 days from now. The FetchXML query does **not** filter on `sit_remindersent = false`.
+
+**Consequence**: Every participant whose training is 4 days away will receive a new reminder email **every day** the flow runs, for as long as their session is 4 days out. In practice the date is exact (`operator="on"`), so only the single day at T−4 matches — but if the flow fails and retries, or if the training session date is updated, participants may receive multiple identical reminder emails.
+
+More critically: if a participant is registered after the T−4 day has passed, they receive **no reminder at all** because the FetchXML window is an exact-date match, not a range.
+
+**Fix required**: Add `<condition attribute="sit_remindersent" operator="eq" value="0"/>` to the FetchXML filter. This ensures each participant receives at most one reminder, regardless of flow retries or session date changes.
+
+---
+
+### GAP-X18 — Reminder Flow: `sit_remindersent` Update Fails for Non-Uitgebreide Branch `[BUG]`
+**Impact**: M | **Effort**: L
+
+In the reminder flow, the `Set_Reminder_sent` step in the non-Uitgebreide branch uses:
+```
+"recordId": "@items('For_each')"
+```
+instead of:
+```
+"recordId": "@items('For_each')?['sit_contacttrainingid']"
+```
+
+`@items('For_each')` resolves to the entire JSON object of the loop item, not the GUID string. The Dataverse update action will receive an invalid GUID and either throw an error (causing the email to be sent but the flag not set) or silently fail.
+
+The equivalent step in the Uitgebreide branch correctly uses `@items('For_each')?['sit_contacttrainingid']`.
+
+**Consequence**: For all non-Uitgebreide participants, `sit_remindersent` is **never set to true** — combined with GAP-X17, they would receive reminder emails on every daily run if the date filter were ever widened to a range.
+
+**Fix required**: Correct the expression in `Set_Reminder_sent` to `@items('For_each')?['sit_contacttrainingid']`.
+
+---
+
+### GAP-X19 — Reminder Email Body Says "1 Week" but Trigger Fires at T−4 Days `[BUG]`
+**Impact**: L | **Effort**: L
+
+The reminder email body reads (Dutch): *"Wij willen u er graag aan herinneren dat deze training **over 1 week** plaatsvindt."*
+
+However, the flow computes `targetDate = addDays(utcNow(), 4)` — participants receive the reminder **4 days** before training, not 7.
+
+**Consequence**: Participants are told they have a week to prepare when they actually have 4 days. The cancellation policy in the same email (5 working days notice) is already close to the deadline at T−4.
+
+**Fix required**: Either change the flow to T−7 days, or update the email body to say "over 4 dagen" / "binnen de komende week."
+
+---
+
+### GAP-X20 — Reminder Subject Typo: "Herrinering" (Non-Uitgebreide Branch) `[BUG]`
+**Impact**: L | **Effort**: L
+
+The email subject in the non-Uitgebreide branch is:
+> "**Herrinering**: Uw aankomende training bij SITECH Academy!"
+
+This is a double-r typo — the correct Dutch word is "Herinnering." The Uitgebreide branch subject is correctly spelled.
+
+**Fix required**: Correct the subject string in the `Add_a_email_Message-copy` action.
 
 ---
 
@@ -797,6 +854,8 @@ No end-user training material is included for Sales agents (quote creation, prod
 | **GAP-X11** | **"Copy of -" training flow is duplicate — may double-fire reminders** | **Academy** |
 | **GAP-X12** | **Hardcoded product GUIDs in flow — silently breaks on environment copy** | **Academy** |
 | **GAP-X13** | **AND instead of OR in certificate flow — Basis Machinisten branch is dead code** | **Academy** |
+| **GAP-X17** | **Reminder flow has no deduplication guard — participants receive multiple reminder emails** | **Academy** |
+| **GAP-X18** | **sit_remindersent update fails for non-Uitgebreide branch — invalid recordId expression** | **Academy** |
 
 ### Low / Medium Impact
 
@@ -808,11 +867,14 @@ No end-user training material is included for Sales agents (quote creation, prod
 | GAP-X06 | Machine Model is Brand×Type matrix — filter logic undesigned | Sales |
 | GAP-X07 | Component replacement flag has no workflow | Support |
 | GAP-X08 | Solution layering deployment order undocumented | Both |
+| GAP-X11 | Reminder flow named "Copy of -" — cosmetic rename needed | Academy |
 | GAP-X14 | Docupack connector dependency undocumented — licence and template governance missing | Academy |
-| GAP-X15 | sit_sertificatesent vs sit_certificatesant field name inconsistency — may be two separate fields | Academy |
+| GAP-X15 | sit_sertificatesent vs sit_certificatesant field name inconsistency | Academy |
 | GAP-X16 | sit_serviceagreementid on TrainingSession — fetched but undocumented | Academy |
+| GAP-X19 | Reminder email says "1 week" but fires at T−4 days | Academy |
+| GAP-X20 | "Herrinering" subject typo in non-Uitgebreide reminder branch | Academy |
 
 ---
 
-*End of Gap & Risk Register — v1.4*  
-*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions (Training Confirmation flow, Certificate Dispatch flow, 2026-06-05)*
+*End of Gap & Risk Register — v1.5*  
+*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions: Confirmation (Flow 1), Certificate Dispatch (Flow 2), Reminder (Flow 3) — all analysed 2026-06-05*

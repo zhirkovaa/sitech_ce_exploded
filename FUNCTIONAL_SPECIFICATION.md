@@ -7,7 +7,7 @@
 **Functional owner (Sitech)**: René van der Linden  
 **Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
 **Date**: 2026-06-05 (enriched with all source documents including managed solution packages)  
-**Version**: 1.4
+**Version**: 1.5
 
 ---
 
@@ -640,12 +640,53 @@ The certificate flow reveals the following training product classification used 
 
 **⚠️ Critical bug**: The `Condition_1` (Basis Machinisten Training branch) uses `AND` between two different product IDs — a logical impossibility. This branch **never executes**. All non-Uitgebreide-Machinisten participants receive the "Basis Beheerders Training" certificate regardless of their actual training type.
 
-#### Flow 3: "Copy of - Get upcoming training sessions"
+#### Flow 3: "Copy of - Get upcoming training sessions" (Reminder Dispatch)
 
-**Flow ID**: `5aba4c9d-4af9-481d-85fb-5eedefe0cb9c` (per manifest)  
-**Connection owner**: `alina.zhirkova@sitech-nederland.nl`
+**Flow ID**: `dd381f78-df57-4c77-8d8d-6d59648e575c`  
+**Created**: ≈2025-11 (startTime) | **Last modified**: 2026-06-04 | **Status**: Active ✅  
+**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)
 
-> Full definition not yet analysed. The "Copy of -" prefix indicates this is a duplicated flow. **Requires analysis** — see GAP-X11.
+**Trigger**: Daily recurrence at **11:30 W. Europe Standard Time**
+
+**Logic**:
+
+```
+1. Initialize targetDate = formatDateTime(addDays(utcNow(), 4), 'yyyy-MM-dd')
+   → reminders fire when training is 4 days away
+   ⚠️ Email body says "training vindt over 1 week plaats" — inconsistent with 4-day window
+2. Fetch "Academy newsletters" queue
+3. Get Academy logo from SharePoint (same path as Flow 1)
+4. Get SOMA College floor plan from SharePoint:
+   /Shared Documents/General/Plattegrond - SOMA College.jpeg
+5. List all active sit_contacttraining records where:
+     linked sit_trainingsession.sit_date = targetDate (exactly 4 days from now)
+   ⚠️ No sit_remindersent filter — flow re-sends to same participants daily!
+6. For each participant record:
+     a. Get Training Session, Training Product, Contact
+     b. OUTER CONDITION — IF product is Uitgebreide Machinisten stream
+          (productid == 96d1de15 OR a24d0469 OR productnumber == "dd7be50e-d85e-ef11-bfe3-000d3a3aa936"):
+          → Send SOMA College reminder email (includes floor plan map + lunch)
+          → Set sit_remindersent = true  ✅
+        ELSE:
+          INNER CONDITION — IF product NOT in excluded list [b24df9ab, b4632176]:
+            → Send generic reminder (no map, "exclusief lunch", "zien u in Asten")
+            → Set sit_remindersent = true ⚠️ BUG: recordId is @items('For_each')
+              not @items('For_each')?['sit_contacttrainingid'] — update will fail
+          ELSE: no action
+```
+
+**Email content** (Dutch, two variants):
+
+| Element | Uitgebreide Machinisten | All Others |
+|---------|------------------------|------------|
+| Subject | "Herinnering: Uw aankomende training bij SITECH Academy!" | "Herrinering: ..." ⚠️ typo (double r) |
+| Venue text | Ceintuurbaan 2, Harderwijk, gebouw 30, lokaal 0.43 (SOMA College) | "Asten" (no address) |
+| Floor plan | Embedded SOMA map image | Not included |
+| Lunch | Included | Excluded |
+| Cancellation | 5 working days | 5 working days |
+| Closing | "zien u graag bij het SOMA College" | "zien u in Asten" |
+
+**Third product identifier**: The outer condition also matches on `productnumber == "dd7be50e-d85e-ef11-bfe3-000d3a3aa936"` — this is a product catalogue number (SKU text string), not a GUID. This means at least one Uitgebreide Machinisten variant is identified by its product number rather than its ID, suggesting the product may have been recreated (new GUID) but its number remained stable.
 
 ### Functional Requirements
 
@@ -673,15 +714,17 @@ Two days after a training session date, a daily scheduled flow identifies all pa
 **FR-TR08 — Certificate Sent Flag**  
 After the certificate email is sent, `sit_sertificatesent` is set to `true` on the `sit_ContactTraining` record.
 
-**FR-TR09 — Upcoming Sessions (Reminder/Digest)**  
-A third flow ("Get upcoming training sessions") handles upcoming session notifications or reminders. Its exact logic requires analysis (see GAP-X11).
+**FR-TR09 — Reminder Email (T−4 days)**  
+Four days before a training session date, a daily scheduled flow identifies all registered participants and sends a Dutch reminder email ("Herinnering: Uw aankomende training bij SITECH Academy!"). The reminder includes course details, date, time, location, and cancellation policy (5 working days). For Uitgebreide Machinisten Training sessions held at SOMA College Harderwijk, the email additionally includes a floor plan image fetched from SharePoint. After sending, `sit_remindersent` is set to `true` on the `sit_ContactTraining` record.
+
+> ⚠️ Known issues: (1) Email body says "over 1 week" but trigger fires at T−4 days. (2) FetchXML does not filter on `sit_remindersent = false`, causing daily re-sends until training passes. (3) `sit_remindersent` update fails for non-Uitgebreide participants due to a bug in the recordId expression. See GAP-X17, GAP-X18, GAP-X19.
 
 ### External Dependencies (Training Module)
 
 | Dependency | Details | Risk |
 |------------|---------|------|
 | Docupack connector (`shared_documentscorepackapi`) | Generates PDF certificates from Word template | Third-party paid connector; template GUID hardcoded |
-| SharePoint (`GP-SITECHWerkvoorbereiding`) | Academy logo for confirmation emails | Logo path must not change |
+| SharePoint (`GP-SITECHWerkvoorbereiding`) | Academy logo (confirmation + reminder) and SOMA College floor plan (reminder for Harderwijk sessions) | Both file paths must not change |
 | "Academy newsletters" queue | All Academy emails sent from this queue | Queue resolved by name — renaming breaks flows |
 | `alina.zhirkova@sitech-nederland.nl` | Connection owner for all flows | Personal credential; confirmation flow suspended since 2026-03-03 |
 
