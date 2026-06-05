@@ -3,8 +3,7 @@
 **Document type**: Functional Specification  
 **Author role**: Business System Analyst  
 **Solution scope**: D365 CE Sales Hub + SitechSupportUX v1.0.0.3 + SitechUX v1.0.0.1 + SitechSupportData v1.0.0.2  
-**Implementer**: Axelio B.V. (Marijke Kerkhove / Renger Reitsema)  
-**Functional owner (Sitech)**: René van der Linden  
+**Implementer**: Microsoft Partner (Power Platform consultancy)  
 **Platform**: Microsoft Dynamics 365 CE / Power Platform / Business Central  
 **Date**: 2026-06-05 (enriched with all source documents including managed solution packages)  
 **Version**: 1.5
@@ -67,7 +66,7 @@ Sitech provides technical support and sales for specialised construction/surveyi
 | Item | Status |
 |------|--------|
 | D365 Field Service | Separate track |
-| Marketing module | Decision open (Dieuwertje) |
+| Marketing module | Decision open ([Marketing Owner]) |
 | Power BI reporting | Separate track |
 | Goals / Forecasting in CE | Decided out — Power BI only |
 | CE → BC integration middleware/connector logic | External to this solution package |
@@ -84,7 +83,7 @@ Sitech provides technical support and sales for specialised construction/surveyi
 | **Service Agent (Inside)** | Creates and manages cases, links assets, records time and product requirements. | Support |
 | **Field Engineer** | Updates cases post-visit, uses asset exploded view. | Support |
 | **Service Manager** | Oversees queue and case routing. | Support |
-| **Sales Admin (Axelio)** | Full administrative access during implementation. | Both |
+| **Sales Admin ([Partner])** | Full administrative access during implementation. | Both |
 | **Back-end System (BC)** | Source of master data; consumer of Sales Orders. | Integration |
 
 ---
@@ -141,7 +140,7 @@ Where accounts have a parent (HQ) relationship, the system must represent this i
 **FR-S06 — Account Manager Assignment**  
 Each Account must be linked to an owner (Account Manager). The ownership mechanism and its interaction with the BC sync must be defined.
 
-**FR-S07 — Additional Fields on Account (to be confirmed with René)**  
+**FR-S07 — Additional Fields on Account (to be confirmed with [Functional Owner])**  
 The following fields were agreed in earlier sessions and need confirmation of inclusion:
 - Sales Instructions (free text)
 - Work Order Instructions (or in BC — decision pending)
@@ -169,7 +168,7 @@ The Lead Source field must be populated with: Referral, Website, Exhibition, Inb
 Leads can be qualified to Opportunities by: salesperson, team lead, or Account Director. Qualification criteria to be defined.
 
 **FR-S13 — Lead Disqualification Reasons**  
-Status reasons for disqualified Leads must be configured (list to be defined with Mark/Sales Manager).
+Status reasons for disqualified Leads must be configured (list to be defined with [Sales Manager]/Sales Manager).
 
 **FR-S14 — Stale Opportunity Alerting**  
 Mechanism to flag Opportunities that have had no activity for a configurable number of days.
@@ -219,7 +218,7 @@ Trade-in products are added to quotes/orders with a negative quantity (e.g., -1 
 A Word template for quotation output and a "Create PDF" button must be available on the Quote form.
 
 **FR-S26 — Trimble Products Without Write-In**  
-Trimble third-party products (handled by Arie) must be accommodatable without enabling write-in. Proposed solution: generic product with editable description and price; BoM loaded via Excel upload in Assembly. This approach to be confirmed.
+Trimble third-party products (handled by internal specialist) must be accommodatable without enabling write-in. Proposed solution: generic product with editable description and price; BoM loaded via Excel upload in Assembly. This approach to be confirmed.
 
 ### 5.7 Product Structure
 
@@ -279,7 +278,7 @@ Installations are invoiced at a fixed price upon delivery. The order may not yet
 ### 5.11 Customer Contracts / Subscriptions
 
 **FR-S38 — Subscriptions Sync to CE (Read-Only)**  
-A custom **Subscriptions** table is created in Dataverse. Records are created in BC and synced read-only to CE. Visible on the Account (Customer Contracts/Subscriptions tab). Fields to be confirmed with René (action V-04).
+A custom **Subscriptions** table is created in Dataverse. Records are created in BC and synced read-only to CE. Visible on the Account (Customer Contracts/Subscriptions tab). Fields to be confirmed with [Functional Owner] (action V-04).
 
 **FR-S39 — VRS Subscription Placement**  
 VRS subscriptions sold per installation must be linked to the **main location** (Account), not automatically placed under the installation (Service Item). The current automatic linking to the installation via Service Item is undesired.
@@ -316,7 +315,7 @@ The following items are removed from the Sales module navigation:
 | AI Research Agent | Not stable; may be reconsidered later |
 | Competitors | Not in use (handled via Opportunity field) |
 | Goals / Performance | Forecasting via Power BI only |
-| Marketing module | Decision open (Dieuwertje) |
+| Marketing module | Decision open ([Marketing Owner]) |
 
 ### 5.14 Dashboards
 
@@ -549,7 +548,7 @@ The certificate flow reveals the following training product classification used 
 
 **Flow ID**: `6978013a-40ff-4a33-927d-485124d65c53`  
 **Created**: 2024-05-14 | **Last modified**: 2026-03-04 | **Suspended since**: 2026-03-03 ⚠️  
-**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)
+**Connection owner**: `[service-account]@[client-domain].nl` (personal credential — see GAP-X10)
 
 **Trigger**: New `sit_contacttraining` row added (Dataverse webhook, scope = Organisation)
 
@@ -566,7 +565,7 @@ The certificate flow reveals the following training product classification used 
      a. Get Trainer (systemusers via _sit_trainerid_value)
      b. Get Contact data (contacts via _sit_contactid_value)
      c. Get Academy logo from SharePoint
-        Site: zeppelinholdings.sharepoint.com/sites/GP-SITECHWerkvoorbereiding
+        Site: [client-tenant].sharepoint.com/sites/[project-site]
         Path: /Shared Documents/General/Academy_pic.png
      d. Fetch "Academy newsletters" queue (by name, FetchXML)
      e. Compose HTML email (Dutch, responsive, SITECH Academy branding)
@@ -580,7 +579,7 @@ The certificate flow reveals the following training product classification used 
 - Subject: *"Bevestiging: Uw toekomstige training bij de SITECH Academy!"*
 - Body includes: course name, participant full name, date (dd-MM-yyyy), time, location
 - Cancellation policy: notify at least 1 week before; costs charged if cancelled within 4 days or no-show
-- Contact: `academy@sitech-nederland.nl` / +31 493 68 10 00
+- Contact: `[academy-queue]@[client-domain].nl` / +31 493 68 10 00
 - Footer: SITECH Academy logo (base64-encoded from SharePoint), link to `www.sitechsolutions.com/nl/training`
 
 **Excluded product GUIDs** (no confirmation email sent):
@@ -595,7 +594,7 @@ The certificate flow reveals the following training product classification used 
 
 **Flow ID**: `97096d9c-9258-400f-adba-c29dc65ceba7`  
 **Created**: 2024-05-30 | **Last modified**: 2025-07-31 | **Status**: Active ✅  
-**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)  
+**Connection owner**: `[service-account]@[client-domain].nl` (personal credential — see GAP-X10)  
 **Additional connector**: `shared_documentscorepackapi` (Docupack — PDF/Word document generation)
 
 **Trigger**: Daily recurrence at **09:50 W. Europe Standard Time**
@@ -644,7 +643,7 @@ The certificate flow reveals the following training product classification used 
 
 **Flow ID**: `dd381f78-df57-4c77-8d8d-6d59648e575c`  
 **Created**: ≈2025-11 (startTime) | **Last modified**: 2026-06-04 | **Status**: Active ✅  
-**Connection owner**: `alina.zhirkova@sitech-nederland.nl` (personal credential — see GAP-X10)
+**Connection owner**: `[service-account]@[client-domain].nl` (personal credential — see GAP-X10)
 
 **Trigger**: Daily recurrence at **11:30 W. Europe Standard Time**
 
@@ -703,7 +702,7 @@ Training offerings are modelled as Products in the D365 product catalogue. Produ
 Confirmation emails are sent from the "Academy newsletters" queue (shared mailbox), not from a personal account. The queue is resolved by name via FetchXML at runtime.
 
 **FR-TR05 — Academy Logo from SharePoint**  
-The confirmation email includes the SITECH Academy logo, fetched at send-time from SharePoint (`GP-SITECHWerkvoorbereiding` site). Logo must remain at the defined path or the flow will fail.
+The confirmation email includes the SITECH Academy logo, fetched at send-time from SharePoint (`[SharePoint-project-site]` site). Logo must remain at the defined path or the flow will fail.
 
 **FR-TR06 — Confirmation Flag**  
 After a confirmation email is sent, `sit_confirmationsent` is set to `true` on the `sit_ContactTraining` record.
@@ -724,9 +723,9 @@ Four days before a training session date, a daily scheduled flow identifies all 
 | Dependency | Details | Risk |
 |------------|---------|------|
 | Docupack connector (`shared_documentscorepackapi`) | Generates PDF certificates from Word template | Third-party paid connector; template GUID hardcoded |
-| SharePoint (`GP-SITECHWerkvoorbereiding`) | Academy logo (confirmation + reminder) and SOMA College floor plan (reminder for Harderwijk sessions) | Both file paths must not change |
+| SharePoint (`[SharePoint-project-site]`) | Academy logo (confirmation + reminder) and SOMA College floor plan (reminder for Harderwijk sessions) | Both file paths must not change |
 | "Academy newsletters" queue | All Academy emails sent from this queue | Queue resolved by name — renaming breaks flows |
-| `alina.zhirkova@sitech-nederland.nl` | Connection owner for all flows | Personal credential; confirmation flow suspended since 2026-03-03 |
+| `[service-account]@[client-domain].nl` | Connection owner for all flows | Personal credential; confirmation flow suspended since 2026-03-03 |
 
 ---
 
@@ -837,7 +836,7 @@ Incident (Case)
 - Start from "all-off" permission set (all rights zeroed).
 - Assign exactly the required permissions per role.
 - Based on the 100-series permission templates prepared by Maud.
-- Axelio configures; René can adjust forms afterwards.
+- [Partner] configures; [Functional Owner] can adjust forms afterwards.
 - User personalisation is **disabled** so all users with the same role see the same screen.
 
 ### 9.2 Sales Roles
@@ -847,7 +846,7 @@ Incident (Case)
 | Account Manager | Full access to Sales module; create/edit Leads, Opportunities, Quotes, Orders. | No access to financial settings. Cannot create Customers (only Prospects). |
 | Sales Manager | Same as Account Manager + team dashboards and reports + customer approval. | No CRM admin rights. |
 | Director | Same as Sales Manager, read-only at team level. | To be confirmed separately. |
-| Sales Admin (Axelio) | Full management of Sales module. | Temporary during implementation. |
+| Sales Admin ([Partner]) | Full management of Sales module. | Temporary during implementation. |
 
 Based on Microsoft standard roles:
 - Sales Manager → **Sales Professional Manager**
@@ -934,21 +933,21 @@ This supports the short-contact registration model (logging calls at the Account
 
 | # | Question | Owner | Deadline |
 |---|----------|-------|----------|
-| V-01 | When is a Lead created vs. direct Opportunity or Activity? | René / Sitech | Before configuration |
-| V-02 | Which BC payment terms fields are needed on Account in CE? | Marijke + René | Before integration |
-| V-03 | Blocked customer: deactivate in CE? Who may do this? | René / Boris | Before go-live |
-| V-04 | Which fields of Customer Contracts/Subscriptions go to CE? | Marijke + René | Before integration |
-| V-05 | Goals in CE: yes/no? Who manages targets? | René / Sitech | To be planned |
-| V-06 | Sales Literature: activate? | René / Sitech | To be planned |
-| V-07 | Marketing module: activate? | René / Dieuwertje | To be planned |
-| V-08 | Which fields visible per tab (Service Items, Subscriptions) for Sales? | René | Before configuration |
-| V-09 | Does BC store invoice PDFs in SharePoint? | Marijke (Jan Jaap) | Short term |
-| V-10 | Merge/Similar/Parent-Child cases: use or exclude? | René / Support team | Before Support config |
-| V-11 | SLA: use or not? Define levels? | René / Support team | Before Support config |
-| V-12 | Credits: by Account or by Installation? How to invoice for negative balance? | René / Finance | Before Support config |
-| V-13 | OEM price lists: synchronise to CE or BC-only? | René / Jan Jaap | Before integration |
-| V-14 | Short vs. Normal cases: confirm registration approach | René / Support team | Before Support config |
-| V-15 | Directorrol permissions: confirm exact scope | René | Before go-live |
+| V-01 | When is a Lead created vs. direct Opportunity or Activity? | [Functional Owner] / Sitech | Before configuration |
+| V-02 | Which BC payment terms fields are needed on Account in CE? | [Partner + Client owner] | Before integration |
+| V-03 | Blocked customer: deactivate in CE? Who may do this? | [Functional Owner] / Boris | Before go-live |
+| V-04 | Which fields of Customer Contracts/Subscriptions go to CE? | [Partner + Client owner] | Before integration |
+| V-05 | Goals in CE: yes/no? Who manages targets? | [Functional Owner] / Sitech | To be planned |
+| V-06 | Sales Literature: activate? | [Functional Owner] / Sitech | To be planned |
+| V-07 | Marketing module: activate? | [Functional Owner] / [Marketing Owner] | To be planned |
+| V-08 | Which fields visible per tab (Service Items, Subscriptions) for Sales? | [Functional Owner] | Before configuration |
+| V-09 | Does BC store invoice PDFs in SharePoint? | [Partner] | Short term |
+| V-10 | Merge/Similar/Parent-Child cases: use or exclude? | [Functional Owner] / Support team | Before Support config |
+| V-11 | SLA: use or not? Define levels? | [Functional Owner] / Support team | Before Support config |
+| V-12 | Credits: by Account or by Installation? How to invoice for negative balance? | [Functional Owner] / Finance | Before Support config |
+| V-13 | OEM price lists: synchronise to CE or BC-only? | [Functional Owner] / [ERP Lead] | Before integration |
+| V-14 | Short vs. Normal cases: confirm registration approach | [Functional Owner] / Support team | Before Support config |
+| V-15 | Directorrol permissions: confirm exact scope | [Functional Owner] | Before go-live |
 
 ---
 
@@ -974,4 +973,4 @@ This supports the short-contact registration model (logging calls at the Account
 ---
 
 *End of Functional Specification — v1.1*  
-*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)*
+*Sources: SitechSupportUX solution XML, [Partner] FDD CESales v0.1, FDD Salesconcept DOCX ([Partner], 01-06-2026), Gap analysis vs. [Partner] meeting notes (26-05-2026)*

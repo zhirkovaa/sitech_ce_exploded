@@ -2,7 +2,7 @@
 
 **Document type**: Gap & Risk Register  
 **Author role**: Business System Analyst  
-**Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Axelio FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026)  
+**Sources**: SitechSupportData 1.0.0.2, SitechSupportUX 1.0.0.3, SitechUX 1.0.0.1 (all managed), Partner FDD CESales v0.1, FDD Salesconcept DOCX (01-06-2026), Gap analysis vs. partner meeting notes (26-05-2026)  
 **Date**: 2026-06-05  
 **Version**: 1.5
 
@@ -18,7 +18,7 @@
 | `[DECISION]` | Requires a Sitech decision — no action without it |
 | `[DESIGN]` | Requires a functional design before build |
 
-Gaps are grouped by theme. Cross-references to the Axelio comparison document (A1–C10) are included where applicable.
+Gaps are grouped by theme. Cross-references to the [Partner] comparison document (A1–C10) are included where applicable.
 
 ---
 
@@ -51,14 +51,14 @@ The FDD states "standard process = Lead → Opportunity → Quote → Order" but
 - Who is authorised to qualify.
 - Stale opportunity definition (days without activity).
 
-All of the above were detailed in January 2026 sessions with Mark (Sales Manager) and need to be incorporated.
+All of the above were detailed in January 2026 sessions with [Sales Manager] and need to be incorporated.
 
 ---
 
 ### GAP-S03 — Competitor Table and Opportunity Lost Reasons Not Configured `[DESIGN]`
 **Impact**: M | **Effort**: L | *Ref: A3*
 
-Agreed values from Jan 2026 with Mark are not reflected in the FDD or the solution:
+Agreed values from Jan 2026 with [Sales Manager] are not reflected in the FDD or the solution:
 - **Competitors**: None, Leica Geosystems, Unicontrole, CHC-NAV, Topcon, OEM, Others.
 - **Lost Reasons (Opportunity)**: Competitor, Price, Solution fit, Timelines.
 - **Lost Reasons (Quote)**: To be defined.
@@ -68,7 +68,7 @@ Agreed values from Jan 2026 with Mark are not reflected in the FDD or the soluti
 ### GAP-S04 — Machine Info Fields on Opportunity Missing `[DESIGN]`
 **Impact**: M | **Effort**: M | *Ref: A4*
 
-The following custom fields, agreed with Mark on 21-01-2026, are absent from the Opportunity form design:
+The following custom fields, agreed with [Sales Manager] on 21-01-2026, are absent from the Opportunity form design:
 - Type, Brand, Reference, Model
 - Specials (yes/no)
 - No follow-ups (separate boolean field)
@@ -81,7 +81,7 @@ The FDD only references "SPA012 Machine selection hierarchy" as a development it
 ### GAP-S05 — Additional Account Fields Not Confirmed `[DECISION]`
 **Impact**: M | **Effort**: M | *Ref: A5*
 
-The following fields/sections agreed in October 2025 (Marijke session) were not addressed in the May 2026 meeting and are not confirmed in/out of scope:
+The following fields/sections agreed in October 2025 ([Partner session]) were not addressed in the May 2026 meeting and are not confirmed in/out of scope:
 - Sales Instructions (free text field)
 - Work Order Instructions (decision: Sales or BC?)
 - Customer Discounts section
@@ -93,14 +93,14 @@ The following fields/sections agreed in October 2025 (Marijke session) were not 
 ### GAP-S06 — Salutation Field on Contact `[DESIGN]`
 **Impact**: L | **Effort**: L | *Ref: A6*
 
-Agreed with Mark/Alina (21-01-2026): a Salutation field must be added to the Contact form. Not mentioned in the FDD.
+Agreed with [Sales Manager]/[BA] (21-01-2026): a Salutation field must be added to the Contact form. Not mentioned in the FDD.
 
 ---
 
 ### GAP-S07 — Word Template / PDF Button on Quote `[DESIGN]`
 **Impact**: M | **Effort**: M | *Ref: A7*
 
-The quotation output format (Word template for customer-facing PDF) is not designed. This is a must-have for customer delivery. Open question from October 2025 session with Marijke. Not addressed in the May 2026 meeting.
+The quotation output format (Word template for customer-facing PDF) is not designed. This is a must-have for customer delivery. Open question from October 2025 session with [Partner]. Not addressed in the May 2026 meeting.
 
 **Questions**:
 - Which Word template is used as the base?
@@ -172,7 +172,7 @@ Open question: Does BC have a required/optional flag on BoM lines that can be sy
 ### GAP-S14 — Trimble Products Without Write-In `[DESIGN]`
 **Impact**: M | **Effort**: M | *Ref: B10*
 
-Trimble third-party products (handled by Arie) cannot be accommodated with write-in disabled. A proposed solution exists (generic product with editable description/price, BoM via Excel upload in Assembly) from Dec 2025 mail exchange but was not referenced in the May 2026 meeting. This needs to be confirmed as the agreed approach.
+Trimble third-party products (handled by internal specialist) cannot be accommodated with write-in disabled. A proposed solution exists (generic product with editable description/price, BoM via Excel upload in Assembly) from Dec 2025 mail exchange but was not referenced in the May 2026 meeting. This needs to be confirmed as the agreed approach.
 
 ---
 
@@ -587,15 +587,15 @@ This means:
 ### GAP-X10 — Training Flows Run Under Personal Credentials `[RISK]` `[BLOCKER]`
 **Impact**: H | **Effort**: M
 
-Both Academy flows (`When Training Participants is added - send Confirmation` and `Copy of - Get upcoming training sessions`) run under the personal Microsoft 365 account `alina.zhirkova@sitech-nederland.nl`. The connections are owned by this individual user.
+Both Academy flows (`When Training Participants is added - send Confirmation` and `Copy of - Get upcoming training sessions`) run under the personal Microsoft 365 account `[service-account]@[client-domain].nl`. The connections are owned by this individual user.
 
 **Risks**:
-- If `alina.zhirkova` leaves Sitech or her account is disabled, **both flows will fail immediately** and no training confirmation emails will be sent.
+- If `[flow-owner-account]` leaves Sitech or her account is disabled, **both flows will fail immediately** and no training confirmation emails will be sent.
 - The flow was suspended (`flowclientsuspensiontime: 2026-03-03`) — likely due to a connection/credential issue. It is **currently non-operational** ⚠️.
 - Personal connections cannot be monitored centrally or transferred without the owner's intervention.
 
 **Action required**:
-1. Create a **service account** (e.g., `svc-powerautomate@sitech-nederland.nl`) with appropriate D365 + SharePoint licences.
+1. Create a **service account** (e.g., `svc-powerautomate@[client-domain].nl`) with appropriate D365 + SharePoint licences.
 2. Re-establish flow connections under the service account.
 3. Implement flow monitoring/alerting (failure email to IT/business owner).
 4. Investigate and resolve the current suspension to restore flow operation.
@@ -877,4 +877,4 @@ No end-user training material is included for Sales agents (quote creation, prod
 ---
 
 *End of Gap & Risk Register — v1.5*  
-*Sources: SitechSupportUX solution XML, Axelio FDD CESales v0.1, FDD Salesconcept DOCX (Axelio, 01-06-2026), Gap analysis vs. Axelio meeting notes (26-05-2026), Power Automate flow definitions: Confirmation (Flow 1), Certificate Dispatch (Flow 2), Reminder (Flow 3) — all analysed 2026-06-05*
+*Sources: SitechSupportUX solution XML, [Partner] FDD CESales v0.1, FDD Salesconcept DOCX ([Partner], 01-06-2026), Gap analysis vs. [Partner] meeting notes (26-05-2026), Power Automate flow definitions: Confirmation (Flow 1), Certificate Dispatch (Flow 2), Reminder (Flow 3) — all analysed 2026-06-05*
