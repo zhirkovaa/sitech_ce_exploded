@@ -117,61 +117,7 @@ Participant registration (sit_ContactTraining row created)
          ⚠️  Dead-code AND condition — wrong certificate type dispatched
 ```
 
-### Production Bugs Identified (7 total)
 
-| # | Severity | Flow | Description |
-|---|----------|------|-------------|
-| 1 | 🔴 Critical | Confirmation | Flow suspended — personal credential broken; no confirmation emails for 3+ months |
-| 2 | 🔴 Critical | Reminder | No `sit_remindersent` filter in FetchXML — duplicate emails sent on each retry |
-| 3 | 🔴 Critical | Certificate | `Condition_1` uses `AND` instead of `OR` — Basis Machinisten branch is dead code; wrong certificate dispatched |
-| 4 | 🔴 Critical | Reminder | `@items('For_each')` missing `?['sit_contacttrainingid']` — flag update fails silently |
-| 5 | 🟡 High | All flows | All connections owned by one personal account — single point of failure |
-| 6 | 🟡 High | All flows | 6 Product GUIDs hardcoded — silent breakage on environment copy |
-| 7 | 🟡 High | Confirmation + Reminder | Field name mismatch `sit_trainingsessiontime` vs `sit_time` — time blank in all emails |
-
----
-
-## Gap Register Summary
-
-52 gaps across 6 categories:
-
-| Category | Total | Blockers |
-|----------|-------|---------|
-| Sales module | 18 | 4 |
-| Support / Customer Service | 16 | 5 |
-| Integration (Technical) | 6 | 2 |
-| Data & Reference Data | 5 | 1 |
-| Code vs. Documentation divergence | 20 | 4 |
-| Testing & Quality | 5 | 1 |
-
-Full register with impact (H/M/L), effort (H/M/L), and actions: see `GAPS_AND_OPEN_QUESTIONS.md`.
-
----
-
-## Methodology
-
-```
-1. Unpack managed solution ZIP → extract customizations.xml
-2. Parse XML → enumerate entities, fields, relationships, security roles
-3. Cross-reference Power Automate flow JSON (trigger → conditions → actions)
-4. Interpret FetchXML queries and connector dependency maps
-5. Identify divergences between implemented code and design documents
-6. Classify: bug | gap | undocumented feature
-7. Produce structured documentation with business impact assessment
-```
-
----
-
-## How to Read the Solution XML
-
-```
-solution/SitechSupportUX_1_0_0_2/
-├── customizations.xml   ← entity definitions, forms, views, relationships
-└── solution.xml         ← solution metadata, version, publisher
-```
-
-Search `customizations.xml` for `<Entity>` to inspect entity schemas.
-Search for `<form>` within entity definitions to inspect form layouts.
 
 ---
 
